@@ -14,13 +14,18 @@ export interface ReasoningStrategyRef {
   readonly parameters?: Readonly<Record<string, string | number | boolean>>;
 }
 
+export interface ResolvedReasoningStrategy {
+  readonly definition: ReasoningStrategy;
+  readonly parameters?: Readonly<Record<string, string | number | boolean>>;
+}
+
 export interface ReasoningProtocol {
   /** Universal reasoning principles shared by every category. */
   readonly universal: readonly string[];
 
-  /** Reasoning rules contributed by the active category. */
+  /** Reasoning rules contributed by the active category and modifiers. */
   readonly category: readonly string[];
 
-  /** Reusable strategies selected for the current step. */
-  readonly strategies: readonly ReasoningStrategyRef[];
+  /** Fully resolved reusable strategies selected for the current step. */
+  readonly strategies: readonly ResolvedReasoningStrategy[];
 }
