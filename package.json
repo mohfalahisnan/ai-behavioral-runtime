@@ -17,6 +17,7 @@
     "smoke:host-native": "npm run build && node dist/examples/host-native-runtime.js"
   },
   "devDependencies": {
+    "@types/node": "^26.1.1",
     "typescript": "^5.8.3"
   }
 }
