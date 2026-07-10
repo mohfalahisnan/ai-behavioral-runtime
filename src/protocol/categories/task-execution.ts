@@ -120,7 +120,7 @@ export const taskExecutionCategory: CategoryProtocol = {
           requiredFields: ["response"],
         },
         completionCriteria: [{ id: "task-report-delivered", description: "A user-facing task result has been produced.", required: true }],
-        allowedTransitions: [{ action: "complete", when: { completionCriteria: ["task-report-delivered"] } }],
+        allowedTransitions: [{ action: "complete", when: { validationStatus: ["passed"], completionCriteria: ["task-report-delivered"] } }],
       },
     ],
   },

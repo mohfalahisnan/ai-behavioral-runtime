@@ -147,7 +147,10 @@ export const discussionCategory: CategoryProtocol = {
         allowedTransitions: [
           {
             action: "complete",
-            when: { completionCriteria: ["response-delivered"] },
+            when: {
+              validationStatus: ["passed"],
+              completionCriteria: ["response-delivered"],
+            },
           },
         ],
       },

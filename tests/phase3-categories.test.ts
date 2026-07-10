@@ -47,6 +47,44 @@ class GenericExecutor implements ModelExecutor {
   }
 }
 
+class MissingTerminalOutputExecutor extends GenericExecutor {
+  override async execute(input: ModelExecutionInput): Promise<ModelExecutionResult> {
+    const isTerminal = input.contract.step.allowedTransitions.some(
+      (transition) => transition.action === "complete",
+    );
+    if (isTerminal) {
+      return {
+        output: {},
+        completedCriteria: input.contract.step.completionCriteria
+          .filter((criterion) => criterion.required)
+          .map((criterion) => criterion.id),
+      };
+    }
+
+    return super.execute(input);
+  }
+}
+
+class DeniedSecurityExecutor extends GenericExecutor {
+  override async execute(input: ModelExecutionInput): Promise<ModelExecutionResult> {
+    if (input.contract.step.id === "security-check") {
+      return {
+        output: Object.fromEntries(
+          (input.contract.step.outputContract.requiredFields ?? []).map((field) => [
+            field,
+            field === "securityApproval" ? false : `denied:${field}`,
+          ]),
+        ),
+        completedCriteria: input.contract.step.completionCriteria
+          .filter((criterion) => criterion.required && criterion.id !== "security-approved")
+          .map((criterion) => criterion.id),
+      };
+    }
+
+    return super.execute(input);
+  }
+}
+
 const expectedWorkflows = {
   discussion: [
     "understand-position:reasoning",
@@ -78,6 +116,15 @@ const expectedWorkflows = {
 const requiredCategoryIds = Object.keys(expectedWorkflows) as Array<
   keyof typeof expectedWorkflows
 >;
+
+const initialContext = {
+  userTurn: "Discuss this position",
+  conversationContext: "Relevant conversation context",
+  task: "Execute this task",
+  taskContext: "Relevant task context",
+  requirement: "Implement this requirement",
+  codebaseContext: "Relevant codebase context",
+} as const;
 
 for (const categoryId of requiredCategoryIds) {
   const occurrences = initialRuntimeSpecification.categories.filter(
@@ -116,14 +163,7 @@ for (const categoryId of requiredCategoryIds) {
     phaseId: `phase-${categoryId}`,
     categoryId,
     objective: `Complete the ${categoryId} workflow`,
-    context: {
-      userTurn: "Discuss this position",
-      conversationContext: "Relevant conversation context",
-      task: "Execute this task",
-      taskContext: "Relevant task context",
-      requirement: "Implement this requirement",
-      codebaseContext: "Relevant codebase context",
-    },
+    context: initialContext,
   });
 
   assertEqual(
@@ -151,4 +191,82 @@ for (const categoryId of requiredCategoryIds) {
   }
 }
 
-console.log("Phase 3 category tests passed: discussion, task_execution, coding_task");
+const missingTerminalOutputRuntime = new BehavioralRuntime({
+  specification: initialRuntimeSpecification,
+  executor: new MissingTerminalOutputExecutor(),
+});
+const regressionFailures: string[] = [];
+
+for (const categoryId of requiredCategoryIds) {
+  const runId = `missing-terminal-output-${categoryId}`;
+  let state = await missingTerminalOutputRuntime.startRun({
+    runId,
+    phaseId: `phase-missing-terminal-output-${categoryId}`,
+    categoryId,
+    objective: `Reject invalid terminal output for ${categoryId}`,
+    context: initialContext,
+  });
+
+  while (state.status === "active") {
+    state = (await missingTerminalOutputRuntime.executeCurrentStep(runId)).state;
+  }
+
+  if (state.status !== "blocked") {
+    regressionFailures.push(
+      `category '${categoryId}' completed with missing terminal output`,
+    );
+    continue;
+  }
+  const terminalTrace = state.traces.at(-1);
+  assert(terminalTrace, `category '${categoryId}' must emit a terminal trace`);
+  assertEqual(
+    terminalTrace.validation?.status,
+    "failed",
+    `category '${categoryId}' terminal validation must fail`,
+  );
+  assertEqual(
+    terminalTrace.transition?.action,
+    "block",
+    `category '${categoryId}' must block after terminal validation failure`,
+  );
+}
+
+const deniedSecurityRuntime = new BehavioralRuntime({
+  specification: initialRuntimeSpecification,
+  executor: new DeniedSecurityExecutor(),
+});
+let deniedSecurityState = await deniedSecurityRuntime.startRun({
+  runId: "denied-security-coding-task",
+  phaseId: "phase-denied-security-coding-task",
+  categoryId: "coding_task",
+  objective: "Block implementation when security approval is denied",
+  context: initialContext,
+});
+
+while (deniedSecurityState.status === "active") {
+  deniedSecurityState = (
+    await deniedSecurityRuntime.executeCurrentStep(deniedSecurityState.runId)
+  ).state;
+}
+
+if (deniedSecurityState.status !== "blocked") {
+  regressionFailures.push("coding task reached completion after security approval was denied");
+} else {
+  assertEqual(
+    deniedSecurityState.currentStepId,
+    "security-check",
+    "denied security approval must stop at security-check",
+  );
+  assert(
+    !deniedSecurityState.traces.some((trace) => trace.stepId === "implement"),
+    "denied security approval must never reach implement",
+  );
+}
+
+assertEqual(
+  regressionFailures.length,
+  0,
+  `transition regressions: ${regressionFailures.join("; ")}`,
+);
+
+console.log("Phase 3 category tests passed: success and transition regressions");

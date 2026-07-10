@@ -130,8 +130,14 @@ export const codingTaskCategory: CategoryProtocol = {
           version: "0.1.0",
           rules: [{ id: "coding-security-shape", kind: "schema", description: "The security check has all required sections.", required: true }],
         },
-        completionCriteria: [{ id: "security-checked", description: "Material security risks have been assessed before implementation.", required: true }],
-        allowedTransitions: [{ action: "continue", to: "implement", when: { validationStatus: ["passed"] } }],
+        completionCriteria: [
+          { id: "security-checked", description: "Material security risks have been assessed before implementation.", required: true },
+          { id: "security-approved", description: "The security assessment explicitly approves implementation.", required: true },
+        ],
+        allowedTransitions: [
+          { action: "continue", to: "implement", when: { validationStatus: ["passed"], completionCriteria: ["security-approved"] } },
+          { action: "block", when: { validationStatus: ["failed"], description: "Security approval is required before implementation." } },
+        ],
       },
       {
         id: "implement",
@@ -244,7 +250,7 @@ export const codingTaskCategory: CategoryProtocol = {
           requiredFields: ["response"],
         },
         completionCriteria: [{ id: "coding-report-delivered", description: "A user-facing coding result has been produced.", required: true }],
-        allowedTransitions: [{ action: "complete", when: { completionCriteria: ["coding-report-delivered"] } }],
+        allowedTransitions: [{ action: "complete", when: { validationStatus: ["passed"], completionCriteria: ["coding-report-delivered"] } }],
       },
     ],
   },
