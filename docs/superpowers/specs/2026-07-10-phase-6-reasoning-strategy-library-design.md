@@ -1,6 +1,6 @@
 # Phase 6 Reasoning Strategy Library Design
 
-**Date:** 2026-07-10  
+**Date:** 2026-07-10
 **Status:** Approved for implementation planning
 
 ## Goal
@@ -148,7 +148,7 @@ Phase 6 does not add per-strategy self-compliance reports or new evidence enforc
 - Phase 5 executor-free prepare/submit and optional direct execution remain unchanged.
 - Host-native and direct-executor paths receive the same compiled strategy definitions.
 - Persisted run state and trace shapes remain unchanged.
-- Built-in catalog and runtime specification metadata receive a Phase 6 version update.
+- Existing built-in strategies move to version `0.2.0`; new strategies start at `0.1.0`; `initialRuntimeSpecification` moves to `0.4.0` with a Phase 6 description.
 
 ## Testing
 
