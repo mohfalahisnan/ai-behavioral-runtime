@@ -218,4 +218,72 @@ assert(
   "convenience execution must fail clearly when no executor is configured",
 );
 
+class SeededStateStore extends InMemoryRuntimeStateStore {
+  constructor(state: RuntimeRunState) {
+    super();
+    void this.save(state);
+  }
+}
+
+const preparedState = await executorFreeRuntime.getState("phase5-default-permission");
+const { permissionPolicy: _permissionPolicy, ...legacyStateBase } = preparedState;
+const legacyState = {
+  ...legacyStateBase,
+  runId: "phase5-legacy-state",
+  phaseId: "phase5-legacy-state-phase",
+} as unknown as RuntimeRunState;
+
+const legacyStore = new SeededStateStore(legacyState);
+const migrationRuntime = new BehavioralRuntime({
+  specification: initialRuntimeSpecification,
+  stateStore: legacyStore,
+});
+const migrated = await migrationRuntime.getState("phase5-legacy-state");
+assertEqual(migrated.permissionPolicy.execution, "none", "legacy state must deny by default");
+assertEqual(
+  (await legacyStore.get("phase5-legacy-state"))?.permissionPolicy.execution,
+  "none",
+  "permission migration must persist through the state store",
+);
+
+const transitionRuntime = new BehavioralRuntime({
+  specification: initialRuntimeSpecification,
+});
+let transitionState = await transitionRuntime.startRun({
+  runId: "phase5-permission-transition",
+  phaseId: "phase5-permission-one",
+  categoryId: "discussion",
+  objective: "Complete with read-only authority",
+  permissionPolicy: { execution: "read_only", capabilities: { filesystemRead: true } },
+  context: validContext,
+});
+const outputs = [
+  firstStepResult,
+  {
+    output: { strengths: [], weaknesses: [], tradeoffs: [], refinements: [] },
+    completedCriteria: ["tradeoffs-exposed"],
+  },
+  {
+    output: { response: "Complete." },
+    completedCriteria: ["response-delivered"],
+  },
+] as const;
+for (const output of outputs) {
+  await transitionRuntime.prepareCurrentStep(transitionState.runId);
+  transitionState = (await transitionRuntime.submitStepResult(transitionState.runId, output)).state;
+}
+const preservedPermission = await transitionRuntime.transitionPhase(
+  transitionState.runId,
+  {
+    phaseId: "phase5-permission-two",
+    categoryId: "task_execution",
+    objective: "Preserve permission when omitted",
+  },
+);
+assertEqual(
+  preservedPermission.permissionPolicy.execution,
+  "read_only",
+  "phase transition omission must preserve permission",
+);
+
 console.log("Phase 5 host-native boundary tests passed");
