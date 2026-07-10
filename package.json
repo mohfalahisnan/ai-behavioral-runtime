@@ -1,11 +1,13 @@
 {
   "name": "ai-behavioral-runtime",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Model-agnostic specification and runtime for predictable AI behavior.",
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "smoke": "npm run build && node dist/examples/minimal-runtime.js"
   },
   "devDependencies": {
     "typescript": "^5.8.3"
