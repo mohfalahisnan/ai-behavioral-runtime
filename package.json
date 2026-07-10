@@ -5,10 +5,11 @@
   "description": "Model-agnostic specification and runtime for predictable AI behavior.",
   "type": "module",
   "scripts": {
-    "test": "npm run test:phase3 && npm run test:phase4 && npm run test:phase5",
+    "test": "npm run test:phase3 && npm run test:phase4 && npm run test:phase5 && npm run test:phase6",
     "test:phase3": "npm run typecheck && npm run build && node dist/tests/phase3-categories.test.js",
     "test:phase4": "npm run typecheck && npm run build && node dist/tests/phase4-constraint-registry.test.js",
     "test:phase5": "npm run typecheck && npm run build && node dist/tests/phase5-host-native-boundary.test.js",
+    "test:phase6": "npm run typecheck && npm run build && node dist/tests/phase6-reasoning-strategies.test.js",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
     "smoke": "npm run build && node dist/examples/minimal-runtime.js",

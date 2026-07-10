@@ -24,6 +24,7 @@ export class ProtocolRegistry {
     this.#indexUnique(specification.categories, this.#categories, "category");
     this.#indexUnique(specification.modifiers, this.#modifiers, "modifier");
     this.#indexUnique(specification.reasoningStrategies, this.#strategies, "reasoning strategy");
+    this.#validateReasoningStrategies();
     this.#validateWorkflows();
   }
 
@@ -104,6 +105,39 @@ export class ProtocolRegistry {
       ...protocol.modifiers.flatMap((modifier) => modifier.constraints ?? []),
       ...protocol.userConstraints,
     ]);
+  }
+
+  #validateReasoningStrategies(): void {
+    const listFields = [
+      "behaviors",
+      "requiredChecks",
+      "prohibitedShortcuts",
+      "evidenceExpectations",
+    ] as const;
+
+    for (const strategy of this.#specification.reasoningStrategies) {
+      if (strategy.objective.trim().length === 0) {
+        throw new SpecificationError(
+          `Reasoning strategy '${strategy.id}' field 'objective' must be a non-blank string`,
+        );
+      }
+
+      for (const field of listFields) {
+        const entries = strategy[field];
+        if (entries.length === 0) {
+          throw new SpecificationError(
+            `Reasoning strategy '${strategy.id}' field '${field}' must contain at least one entry`,
+          );
+        }
+        entries.forEach((entry, index) => {
+          if (entry.trim().length === 0) {
+            throw new SpecificationError(
+              `Reasoning strategy '${strategy.id}' field '${field}' entry ${index} must be a non-blank string`,
+            );
+          }
+        });
+      }
+    }
   }
 
   #validateWorkflows(): void {

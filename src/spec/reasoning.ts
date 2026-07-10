@@ -4,9 +4,9 @@ export interface ReasoningStrategy extends SpecificationMetadata {
   readonly id: StrategyId;
   readonly objective: string;
   readonly behaviors: readonly string[];
-  readonly requiredChecks?: readonly string[];
-  readonly prohibitedShortcuts?: readonly string[];
-  readonly evidenceExpectations?: readonly string[];
+  readonly requiredChecks: readonly string[];
+  readonly prohibitedShortcuts: readonly string[];
+  readonly evidenceExpectations: readonly string[];
 }
 
 export interface ReasoningStrategyRef {
