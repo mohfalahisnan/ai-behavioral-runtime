@@ -1,0 +1,28 @@
+project_context:
+  name: "ai-behavioral-runtime"
+  runtime: "node"
+  framework: "none"
+  package_manager: "pnpm"
+
+  commands:
+    build: "pnpm run build"
+    lint: "pnpm run typecheck"
+    test: "pnpm test"
+    typecheck: "pnpm run typecheck"
+
+  boundaries:
+    never_touch:
+      - "pnpm-lock.yaml"
+      - "package-lock.json"
+      - "yarn.lock"
+      - "dist/"
+      - ".git/"
+      - "node_modules/"
+    require_review:
+      - "src/spec/*"
+
+  github:
+    owner_type: "personal"
+    owner: "mohfalahisnan"
+    repo: "ai-behavioral-runtime"
+    default_branch: "main"
