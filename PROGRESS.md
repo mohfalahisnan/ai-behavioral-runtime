@@ -10,6 +10,7 @@ Last updated: 2026-07-10
 | Phase 2 — Minimal Runtime | ✅ Completed | Minimal behavioral runtime implemented with protocol loading, workflow execution, step contract compilation, model execution, validation, tracing, and runtime-controlled transitions. |
 | Phase 3 — Initial Categories | ✅ Completed | Added and validated `discussion`, `task_execution`, and `coding_task` on the same declarative runtime. |
 | Phase 4 — Constraint Registry | ✅ Completed | Added deterministic explicit extraction, immutable registry history, step relevance metadata, complete compliance reporting, and caller-authorized phase transitions. |
+| Phase 5 — Reasoning Strategy Library | ⏳ Next | Implement the first reusable strategies with observable checks, outputs, and evidence expectations. |
 
 ## Phase 1 — Specification
 
@@ -120,3 +121,13 @@ Validation evidence:
 - `npm run typecheck` — passed
 - `npm run smoke` — passed
 - `git diff --check` — passed
+
+## Phase 5 — Reasoning Strategy Library
+
+**Status:** ⏳ Next
+
+Planned scope:
+
+- reusable constraint analysis, evidence gathering, hypothesis testing, root-cause analysis, tradeoff analysis, risk analysis, adversarial review, and verification strategies
+- strategy objectives, recommended behavior, required checks, prohibited shortcuts, and evidence expectations
+- observable reasoning behavior and outputs without requiring hidden chain-of-thought
