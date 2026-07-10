@@ -5,6 +5,7 @@ import type {
   ProtocolId,
   SpecificationMetadata,
 } from "./primitives.js";
+import type { ReasoningStrategy } from "./reasoning.js";
 import type { WorkflowDefinition } from "./workflow.js";
 
 export interface ProtocolRule {
@@ -45,4 +46,5 @@ export interface ProtocolRuntimeSpecification extends SpecificationMetadata {
   readonly baseProtocol: BaseProtocol;
   readonly categories: readonly CategoryProtocol[];
   readonly modifiers: readonly BehaviorModifier[];
+  readonly reasoningStrategies: readonly ReasoningStrategy[];
 }
