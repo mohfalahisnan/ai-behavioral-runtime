@@ -15,7 +15,7 @@ The runtime does not infer natural-language intent. Empty instructions fail. Dif
 
 ## Registry and selection
 
-`ConstraintRegistry` returns immutable snapshots. New semantic constraints append `registered` history entries. Repeated semantic constraints stay deduplicated and append `reaffirmed` entries.
+`ConstraintRegistry` returns immutable snapshots. `constraints` contains the active set for the current phase, while `registeredConstraints` retains the run-wide catalog used for collision detection and later reactivation. New semantic constraints append `registered` history entries. Repeated semantic constraints stay deduplicated and append `reaffirmed` entries. Every history entry records the `phaseId` that caused the registration or reaffirmation.
 
 Selection precedence is deterministic:
 
@@ -28,12 +28,12 @@ Compiled step contracts expose relevant constraints in `constraints` and ignored
 
 ## Compliance
 
-Validation returns one compliance record for each constraint visible to the step. Relevant executor records are preserved. Missing relevant records become `inconclusive`. Ignored constraints become `not_applicable` with the selection reason.
+Validation returns one compliance record for each constraint visible to the step. Relevant executor records are preserved. Missing relevant records become `inconclusive`. Missing hard-constraint records make overall validation inconclusive; missing preference records remain visible but do not gate validation. Ignored constraints become `not_applicable` with the selection reason.
 
 Unknown or duplicate executor compliance IDs create deterministic failed checks. Violated hard constraints fail validation.
 
 ## Phase transition boundary
 
-`BehavioralRuntime.transitionPhase` is explicit caller authorization. It accepts a new phase, category, and objective only when the prior phase is completed. It preserves context, traces, active constraints, and full history; adds or reaffirms caller-supplied constraints; resets step counters; and starts at the new category entry step.
+`BehavioralRuntime.transitionPhase` is explicit caller authorization. It accepts a new phase, category, and objective only when the prior phase is completed. It preserves context, traces, persistent explicit and legacy user constraints, the registered catalog, and full history; adds or reaffirms caller-supplied constraints; resets step counters; and starts at the new category entry step. Modifier constraints follow the new `modifierIds`: removed modifiers become inactive and stop being selected, but their catalog and history records remain.
 
 No automatic category selection, provider binding, model routing, validator framework, or multi-agent behavior is introduced.
