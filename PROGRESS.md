@@ -16,7 +16,7 @@ Last updated: 2026-07-10
 | Phase 8 — Auto Turn Resolution | ✅ Completed | Created TurnResolver supporting LLM turn classification and keyword heuristics, fully integrated into the runtime. |
 | Phase 9 — Traceability & Debugging | ✅ Completed | Created TraceInspector providing query, filter, and a deterministic step-by-step replay harness. |
 | Phase 10 — Evaluation | ✅ Completed | Developed evaluation suite comparing prompting paradigms. |
-| Phase 11 — First Real Host Plugin | ✅ Completed | Implemented self-contained local Antigravity plugin with native HTTP webhook server and workspace file persistence store. |
+| Phase 11 — First Real Host Plugin | ✅ Completed | Implemented self-contained local Antigravity plugin and native Claude Code plugin with lifecycle hook scripts, skill auto-discovery, and workspace state store. |
 
 ## Phase 1 — Specification
 
@@ -220,6 +220,11 @@ Exposed deliverables:
 - Local filesystem `LocalFileStateStore` workspace storage under `.behavioral-runtime/`.
 - Dynamic exports from `src/host/antigravity/`.
 - Simulated webhook execution test suite.
+- Concrete `ClaudeCodeHostAdapter` mapping Claude Code capabilities with caveats (interceptable enforcement, partial tool scoping).
+- `ClaudeCodePlugin` handling CLI-native stdin/stdout hook invocations without running a server.
+- Packaged plugin bundle under `plugins/claude-code-behavioral-runtime/` including `plugin.json` manifest, `hooks.json` mapping all five hooks to ESM scripts, and `behavioral-governance/SKILL.md` for auto-discovered governance instructions.
+- Distributable hook scripts for SessionStart, PreToolUse, PostToolUse, Stop, and SessionEnd processing JSON streams.
 
 Validation evidence:
-- `npm test` — all tests passed including Phase 11 Antigravity plugin webhook lifecycle checks.
+- `npm test` — all tests passed including Phase 11 Antigravity plugin and Claude Code native hook lifecycle checks.
+

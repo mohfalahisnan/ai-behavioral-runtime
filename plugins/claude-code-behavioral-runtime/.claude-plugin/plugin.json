@@ -1,0 +1,8 @@
+{
+  "name": "claude-code-behavioral-runtime",
+  "description": "AI Behavioral Runtime governance plugin for Claude Code. Standardizes how AI interactions are categorized, reasoned through, constrained, validated, and transitioned.",
+  "version": "0.1.0",
+  "author": {
+    "name": "AI Behavioral Runtime"
+  }
+}
