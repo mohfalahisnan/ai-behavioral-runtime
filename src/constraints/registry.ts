@@ -39,6 +39,21 @@ function ownAlias(
     : undefined;
 }
 
+function compareConstraintIds(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function describeAliasCycle(cycle: readonly string[]): string {
+  let firstIndex = 0;
+  for (let index = 1; index < cycle.length; index += 1) {
+    if (compareConstraintIds(cycle[index]!, cycle[firstIndex]!) < 0) {
+      firstIndex = index;
+    }
+  }
+  const ordered = [...cycle.slice(firstIndex), ...cycle.slice(0, firstIndex)];
+  return [...ordered, ordered[0]].join(" -> ");
+}
+
 export class ConstraintCollisionError extends Error {
   constructor(constraintId: string) {
     super(`Constraint ID collision detected for '${constraintId}'`);
@@ -178,11 +193,79 @@ export class ConstraintRegistry {
     }
 
     const providedAliases = snapshot.constraintIdAliases as unknown;
-    for (const [alias, target] of aliasEntries(providedAliases)) {
-      const canonicalTarget = ownAlias(constraintIdAliases, target) ?? target;
-      if (registeredConstraints.some((constraint) => constraint.id === canonicalTarget)) {
-        constraintIdAliases[alias] = canonicalTarget;
+    const providedEntries = [...aliasEntries(providedAliases)].sort(([left], [right]) =>
+      compareConstraintIds(left, right),
+    );
+    const providedByAlias = new Map(providedEntries);
+    const canonicalIds = new Set(
+      registeredConstraints.map((constraint) => constraint.id),
+    );
+    const derivedAliases = createAliasMap(constraintIdAliases);
+    const resolvedAliases = new Map<string, string>();
+
+    for (const [alias, target] of providedEntries) {
+      if (canonicalIds.has(alias) && target !== alias) {
+        throw new Error(
+          `Canonical constraint ID '${alias}' cannot alias '${target}'`,
+        );
       }
+    }
+
+    const resolveAlias = (alias: string): string => {
+      const cached = resolvedAliases.get(alias);
+      if (cached !== undefined) return cached;
+
+      const path: string[] = [];
+      const pathIndexes = new Map<string, number>();
+      let current = alias;
+      let canonicalId: string;
+
+      while (true) {
+        if (canonicalIds.has(current)) {
+          canonicalId = current;
+          break;
+        }
+        const resolved = resolvedAliases.get(current);
+        if (resolved !== undefined) {
+          canonicalId = resolved;
+          break;
+        }
+        const derived = ownAlias(derivedAliases, current);
+        if (!providedByAlias.has(current) && derived !== undefined) {
+          canonicalId = derived;
+          break;
+        }
+        const cycleIndex = pathIndexes.get(current);
+        if (cycleIndex !== undefined) {
+          throw new Error(
+            `Constraint alias cycle detected: ${describeAliasCycle(path.slice(cycleIndex))}`,
+          );
+        }
+
+        const target = providedByAlias.get(current);
+        if (target === undefined) {
+          throw new Error(
+            `Constraint alias '${path.at(-1) ?? alias}' targets unknown constraint ID '${current}'`,
+          );
+        }
+        pathIndexes.set(current, path.length);
+        path.push(current);
+        current = target;
+      }
+
+      for (const visited of path) resolvedAliases.set(visited, canonicalId);
+      return canonicalId;
+    };
+
+    for (const [alias] of providedEntries) {
+      const canonicalId = resolveAlias(alias);
+      const derived = ownAlias(derivedAliases, alias);
+      if (derived !== undefined && canonicalId !== derived) {
+        throw new Error(
+          `Constraint alias '${alias}' cannot resolve to '${canonicalId}'; canonical mapping is '${derived}'`,
+        );
+      }
+      constraintIdAliases[alias] = canonicalId;
     }
 
     const activeIds = new Set<string>();

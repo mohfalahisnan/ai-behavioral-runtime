@@ -44,6 +44,20 @@ async function assertRejects(
   throw new Error(`expected rejection containing '${expectedMessage}'`);
 }
 
+async function assertRejectsExactly(
+  operation: () => unknown | Promise<unknown>,
+  expectedMessage: string,
+): Promise<void> {
+  try {
+    await operation();
+  } catch (error) {
+    assert(error instanceof Error, "rejection must be an Error");
+    assertEqual(error.message, expectedMessage, "rejection message must be deterministic");
+    return;
+  }
+  throw new Error(`expected rejection '${expectedMessage}'`);
+}
+
 const extractor = new ConstraintExtractor();
 const whitespaceA = extractor.extract({
   instruction: "  Preserve   public\n APIs  ",
@@ -120,6 +134,14 @@ function makeConstraint(
   };
 }
 
+function makeAliasMap(
+  entries: readonly (readonly [string, string])[],
+): Readonly<Record<string, string>> {
+  const aliases = Object.create(null) as Record<string, string>;
+  for (const [alias, target] of entries) aliases[alias] = target;
+  return Object.freeze(aliases);
+}
+
 const canonicalLegacyA: Constraint = {
   ...makeConstraint("legacy-canonical-a"),
   rule: "Preserve the same legacy semantic rule",
@@ -165,6 +187,79 @@ await assertRejects(
     "phase-canonical-collision",
   ),
   "collision",
+);
+const canonicalConflictC: Constraint = {
+  ...makeConstraint("legacy-canonical-c"),
+  rule: "Different registered canonical rule",
+};
+const canonicalConflictBase = registry.register(
+  registry.empty(),
+  [canonicalLegacyA, canonicalConflictC],
+  "phase-canonical-conflict",
+);
+const conflictingCanonicalAliasSnapshot = {
+  ...canonicalConflictBase,
+  constraintIdAliases: makeAliasMap([
+    [canonicalLegacyA.id, canonicalConflictC.id],
+    [canonicalConflictC.id, canonicalConflictC.id],
+  ]),
+};
+await assertRejectsExactly(
+  () => registry.normalize(conflictingCanonicalAliasSnapshot),
+  `Canonical constraint ID '${canonicalLegacyA.id}' cannot alias '${canonicalConflictC.id}'`,
+);
+
+const aliasChainBase = registry.register(
+  registry.empty(),
+  [canonicalConflictC],
+  "phase-alias-chain",
+);
+for (const entries of [
+  [["legacy-alias-x", "legacy-alias-y"], ["legacy-alias-y", canonicalConflictC.id]],
+  [["legacy-alias-y", canonicalConflictC.id], ["legacy-alias-x", "legacy-alias-y"]],
+] as const) {
+  const normalizedChain = registry.normalize({
+    ...aliasChainBase,
+    constraintIdAliases: makeAliasMap(entries),
+  });
+  assertEqual(
+    normalizedChain.constraintIdAliases["legacy-alias-x"],
+    canonicalConflictC.id,
+    "alias chain head must normalize to the canonical ID independent of insertion order",
+  );
+  assertEqual(
+    normalizedChain.constraintIdAliases["legacy-alias-y"],
+    canonicalConflictC.id,
+    "alias chain target must normalize to the canonical ID independent of insertion order",
+  );
+  assertEqual(
+    normalizedChain.constraintIdAliases[canonicalConflictC.id],
+    canonicalConflictC.id,
+    "canonical registered IDs must always self-map",
+  );
+}
+
+for (const entries of [
+  [["legacy-cycle-x", "legacy-cycle-y"], ["legacy-cycle-y", "legacy-cycle-x"]],
+  [["legacy-cycle-y", "legacy-cycle-x"], ["legacy-cycle-x", "legacy-cycle-y"]],
+] as const) {
+  await assertRejectsExactly(
+    () => registry.normalize({
+      ...aliasChainBase,
+      constraintIdAliases: makeAliasMap(entries),
+    }),
+    "Constraint alias cycle detected: legacy-cycle-x -> legacy-cycle-y -> legacy-cycle-x",
+  );
+}
+
+await assertRejectsExactly(
+  () => registry.normalize({
+    ...aliasChainBase,
+    constraintIdAliases: makeAliasMap([
+      ["legacy-dangling-x", "legacy-dangling-target"],
+    ]),
+  }),
+  "Constraint alias 'legacy-dangling-x' targets unknown constraint ID 'legacy-dangling-target'",
 );
 let aliasSelection = registry.select(
   canonicalSnapshot,
