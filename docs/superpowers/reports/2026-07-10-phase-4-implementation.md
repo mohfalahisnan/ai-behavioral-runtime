@@ -7,6 +7,7 @@
 - Task-review fixes and regressions: `95642e4` (`fix(runtime): address phase 4 review findings`)
 - Whole-branch invariant fixes: `3ef7f2f` (`fix(runtime): harden phase 4 invariants`)
 - Alias re-review fixes: `0bbb67f` (`fix(runtime): harden constraint alias handling`)
+- Persisted alias normalization: `a42df1b` (`fix(runtime): normalize persisted constraint aliases`)
 
 ## TDD evidence
 
@@ -109,6 +110,13 @@ Phase 4 constraint registry tests passed
 
 - RED: after correcting a test-only `.constructor` typing issue without production edits, `npm run test:phase4` exited `1`; alias storage expected a null prototype but received an ordinary object.
 - GREEN: null-prototype maps plus own-key reads preserve `__proto__` and `constructor` through registration, resolution, selection, activation, persisted-state migration, contract compilation, and validation; `npm run test:phase4` exited `0`.
+
+### Persisted alias graph normalization
+
+- TDD setup: an uncommitted canonical-ID guard from an interrupted implementation was removed before the regression run. Focused tests then covered canonical-ID remapping, both insertion orders for a two-hop alias chain, both insertion orders for a cycle, and a dangling target.
+- RED: `npm run test:phase4` exited `1` after typecheck and build both succeeded. Runtime execution reached the regression and reported `expected rejection 'Canonical constraint ID 'legacy-canonical-a' cannot alias 'legacy-canonical-c''`, proving persisted canonical IDs could still be silently remapped.
+- GREEN: `npm run test:phase4` exited `0`; `tsc --noEmit`, build, and `Phase 4 constraint registry tests passed` all succeeded. Alias chains flattened to their registered canonical ID in either insertion order, canonical IDs remained self-mapped, and cycles/dangling targets produced exact deterministic errors.
+- Full gate before commit: `npm test`, `npm run typecheck`, `npm run smoke`, and `git diff --check` each exited `0`. Phase 3 and Phase 4 regressions passed; smoke completed with four traces and one validated retry, then blocked invalid input before model execution.
 
 ## Scope review
 

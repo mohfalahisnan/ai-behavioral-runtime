@@ -39,6 +39,8 @@ A declarative `complete` transition is eligible only when aggregate validation i
 
 When a state store returns a pre-Phase-4 run without `constraintRegistry` and `persistentConstraintIds`, the runtime rebuilds them from existing user constraints and active modifier constraints, saves the normalized state through the configured store, and continues normal compilation, validation, or completed-phase transition. Persisted Phase-4 snapshots are also normalized when aliases are missing or stored in an older ordinary-object or `Map` shape: active/catalog constraints are canonically deduplicated, aliases and persistent IDs are restored, and existing history and traces are preserved.
 
+Persisted alias graphs normalize transitively to registered canonical IDs, independent of stored insertion order. Every registered canonical ID always self-maps. A persisted edge that remaps a canonical ID, an alias cycle, or an alias chain ending at an unknown ID is rejected with a deterministic error instead of being silently ignored.
+
 ## Phase transition boundary
 
 `BehavioralRuntime.transitionPhase` is explicit caller authorization. It accepts a new phase, category, and objective only when the prior phase is completed. It preserves context, traces, persistent explicit and legacy user constraints, the registered catalog, and full history; adds or reaffirms caller-supplied constraints; resets step counters; and starts at the new category entry step. Modifier constraints follow the new `modifierIds`: removed modifiers become inactive and stop being selected, but their catalog and history records remain.
