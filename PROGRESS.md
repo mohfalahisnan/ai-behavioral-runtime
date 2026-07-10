@@ -56,6 +56,22 @@ Completed capabilities:
 - execution traces including model execution results
 - Phase 2 smoke example and build scripts
 
+### Code Review (2026-07-10)
+
+Reviewed 2 commits (`b85e387`, `c6e2c46`) — refactors to spec layer.
+
+| Finding | Priority | Status |
+|---|---|---|
+| `reasoningStrategies` required but missing in example literal | P1 | ✅ Fixed (pull `5b06a6b`) |
+| Spread type regression in `behavioral-runtime.ts` (JsonObject extraction) | P1 | ✅ Fixed (pull `5b06a6b`) |
+| 22 runtime-layer type errors (`EffectiveStepContract`, `completedCriteria`, etc.) | P1 | ✅ Fixed (pull `5b06a6b`) |
+| No referential integrity check for `strategyId` refs in workflow steps | P2 | ✅ Fixed — `ProtocolRegistry#validateWorkflows` (pull `5b06a6b`) |
+| `JsonArray` not exported alongside `JsonObject` | P2 | ✅ Fixed — exported `JsonArray` in `primitives.ts` |
+| No type-level tests for `JsonObject` / `JsonArray` | P2 | ⏳ Deferred to Phase 3 test setup |
+| `JsonObject` / `JsonArray` missing JSDoc | P3 | ✅ Fixed — added doc comments |
+
+`tsc --noEmit` passes clean (0 errors) after all fixes.
+
 ## Phase 3 — Initial Categories
 
 **Status:** ⏳ Next

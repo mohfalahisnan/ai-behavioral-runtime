@@ -18,11 +18,14 @@ export interface SpecificationMetadata {
 }
 
 export type JsonPrimitive = string | number | boolean | null;
+/** An ordered, read-only sequence of recursively JSON-safe values. */
+export type JsonArray = readonly JsonValue[];
 export type JsonValue =
   | JsonPrimitive
-  | readonly JsonValue[]
+  | JsonArray
   | JsonObject;
 
+/** A JSON-safe plain object with string keys and recursively JSON-safe values. */
 export interface JsonObject {
   readonly [key: string]: JsonValue;
 }
