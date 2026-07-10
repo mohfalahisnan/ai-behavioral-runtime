@@ -19,6 +19,10 @@ export interface ValidationContext {
   readonly execution: ModelExecutionResult;
 }
 
+export interface Validator<TInput, TResult> {
+  validate(input: TInput): Promise<TResult>;
+}
+
 export interface ValidatorHandler {
   readonly kind: ValidatorKind;
   validate(rule: ValidationRule, context: ValidationContext): Promise<ValidationCheckResult>;
@@ -36,6 +40,10 @@ export class ValidationPipeline {
     for (const handler of handlers) {
       this.#handlers.set(handler.kind, handler);
     }
+  }
+
+  register(handler: ValidatorHandler): void {
+    this.#handlers.set(handler.kind, handler);
   }
 
   async validate(context: ValidationContext): Promise<ValidationResult> {

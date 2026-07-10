@@ -88,6 +88,10 @@ export class BehavioralRuntime {
     ]);
   }
 
+  registerValidator(handler: ValidatorHandler): void {
+    this.#validation.register(handler);
+  }
+
   async startRun(input: StartRunInput): Promise<RuntimeRunState> {
     if (await this.#store.has(input.runId)) {
       throw new InvalidRunStateError(`Runtime run already exists: ${input.runId}`);
