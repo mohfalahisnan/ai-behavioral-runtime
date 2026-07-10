@@ -8,6 +8,7 @@
 - Whole-branch invariant fixes: `3ef7f2f` (`fix(runtime): harden phase 4 invariants`)
 - Alias re-review fixes: `0bbb67f` (`fix(runtime): harden constraint alias handling`)
 - Persisted alias normalization: `a42df1b` (`fix(runtime): normalize persisted constraint aliases`)
+- Persisted active/catalog reconciliation: `d09e969` (`fix(runtime): reconcile persisted active constraints`)
 
 ## TDD evidence
 
@@ -117,6 +118,13 @@ Phase 4 constraint registry tests passed
 - RED: `npm run test:phase4` exited `1` after typecheck and build both succeeded. Runtime execution reached the regression and reported `expected rejection 'Canonical constraint ID 'legacy-canonical-a' cannot alias 'legacy-canonical-c''`, proving persisted canonical IDs could still be silently remapped.
 - GREEN: `npm run test:phase4` exited `0`; `tsc --noEmit`, build, and `Phase 4 constraint registry tests passed` all succeeded. Alias chains flattened to their registered canonical ID in either insertion order, canonical IDs remained self-mapped, and cycles/dangling targets produced exact deterministic errors.
 - Full gate before commit: `npm test`, `npm run typecheck`, `npm run smoke`, and `git diff --check` each exited `0`. Phase 3 and Phase 4 regressions passed; smoke completed with four traces and one validated retry, then blocked invalid input before model execution.
+
+### Persisted active/catalog reconciliation
+
+- RED: after adding focused regressions without production edits, `npm run test:phase4` exited `1` after typecheck and build succeeded. The runtime threw `Constraint alias cycle detected: legacy-canonical-b -> legacy-canonical-b` while normalizing an older `[A, B]` duplicate catalog with identity aliases, proving stale duplicate identity aliases were not repaired.
+- Added coverage: a unique active constraint absent from the registered catalog rejects with an exact dangling-active error; an active constraint reusing registered ID `A` for different semantics throws `ConstraintCollisionError`; an active legacy ID `B` with the same canonical semantics as registered `A` repairs to `B -> A`, activates canonical `A`, and preserves history.
+- GREEN: `npm run test:phase4` exited `0`; typecheck, build, and all Phase 4 constraint registry regressions passed. Catalog/active semantics are now reconciled before persisted alias graph resolution, so only semantically proven stale identity aliases are repaired.
+- Full gate before commit: `npm test`, `npm run typecheck`, `npm run smoke`, and `git diff --check` each exited `0`. Phase 3 and Phase 4 tests passed; smoke completed with four traces and one validated retry, then blocked invalid input before model execution.
 
 ## Scope review
 

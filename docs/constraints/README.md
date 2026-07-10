@@ -41,6 +41,8 @@ When a state store returns a pre-Phase-4 run without `constraintRegistry` and `p
 
 Persisted alias graphs normalize transitively to registered canonical IDs, independent of stored insertion order. Every registered canonical ID always self-maps. A persisted edge that remaps a canonical ID, an alias cycle, or an alias chain ending at an unknown ID is rejected with a deterministic error instead of being silently ignored.
 
+Persisted catalog order determines the canonical ID when older snapshots contain multiple catalog entries with identical semantics: the first entry remains canonical and later identity aliases are repaired to it. Active entries are reconciled by both ID and canonical semantics. Reusing a registered ID for different semantics throws `ConstraintCollisionError`; active semantics absent from the catalog produce an explicit dangling-active error. An active legacy ID with the same semantics as a registered constraint is safe to repair to that canonical ID and activates the canonical catalog entry. Normalization preserves existing history, runtime traces, and context.
+
 ## Phase transition boundary
 
 `BehavioralRuntime.transitionPhase` is explicit caller authorization. It accepts a new phase, category, and objective only when the prior phase is completed. It preserves context, traces, persistent explicit and legacy user constraints, the registered catalog, and full history; adds or reaffirms caller-supplied constraints; resets step counters; and starts at the new category entry step. Modifier constraints follow the new `modifierIds`: removed modifiers become inactive and stop being selected, but their catalog and history records remain.
