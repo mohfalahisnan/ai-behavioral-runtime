@@ -1,3 +1,4 @@
+import type { ModelExecutionResult } from "./execution.js";
 import type { ConstraintId } from "./primitives.js";
 import type {
   CategoryId,
@@ -28,6 +29,7 @@ export interface ExecutionTrace {
   readonly phaseId: PhaseId;
   readonly stepId: StepId;
   readonly protocol: EffectiveProtocolTrace;
+  readonly execution?: ModelExecutionResult;
   readonly validation?: ValidationResult;
   readonly transition?: TransitionTrace;
   readonly timestamp: string;
