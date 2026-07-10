@@ -16,6 +16,7 @@ import type {
   EnforcementLevel,
   HostCapabilities,
   PermissionPolicy,
+  ExecutionResult,
 } from "../spec/index.js";
 import type { EffectiveStepContract } from "../spec/execution.js";
 
@@ -77,7 +78,7 @@ export interface PhaseTransitionInput {
 export interface RuntimeStepResult {
   readonly state: RuntimeRunState;
   readonly contract: EffectiveStepContract;
-  readonly execution?: ModelExecutionResult;
+  readonly execution?: ExecutionResult;
   readonly validation: ValidationResult;
   readonly transition: TransitionTrace;
 }

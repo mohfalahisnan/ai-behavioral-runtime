@@ -146,4 +146,76 @@ assertEqual(
   "trace must disclose permission policy",
 );
 
+import type {
+  ModelExecutionInput,
+  ModelExecutor,
+} from "../src/index.js";
+
+const firstStepResult = {
+  output: {
+    position: "The host executes models while the runtime governs transitions.",
+    constraints: [],
+    assumptions: [],
+  },
+  completedCriteria: ["position-understood"],
+};
+
+const submitted = await executorFreeRuntime.submitStepResult(
+  "phase5-prepare",
+  firstStepResult,
+);
+assertEqual(submitted.transition.action, "continue", "valid host result must continue");
+assertEqual(
+  submitted.state.currentStepId,
+  "analyze-and-challenge",
+  "submission must advance the runtime-owned step",
+);
+assertEqual(
+  submitted.state.attemptsByStep["understand-position"],
+  1,
+  "submission, not preparation, counts the attempt",
+);
+assertEqual(submitted.state.traces.length, 1, "submission must persist one trace");
+assertEqual(
+  submitted.state.traces[0]?.execution,
+  firstStepResult,
+  "trace must contain the host-submitted result",
+);
+
+class OneStepExecutor implements ModelExecutor {
+  calls = 0;
+  async execute(input: ModelExecutionInput) {
+    this.calls += 1;
+    assertEqual(input.contract.step.id, "understand-position", "helper must use prepared step");
+    return firstStepResult;
+  }
+}
+
+const helperExecutor = new OneStepExecutor();
+const helperRuntime = new BehavioralRuntime({
+  specification: initialRuntimeSpecification,
+  executor: helperExecutor,
+});
+await helperRuntime.startRun({
+  runId: "phase5-helper",
+  phaseId: "phase5-helper-phase",
+  categoryId: "discussion",
+  objective: "Retain optional direct execution",
+  context: validContext,
+});
+const helperResult = await helperRuntime.executeCurrentStep("phase5-helper");
+assertEqual(helperExecutor.calls, 1, "configured helper must invoke one executor");
+assertEqual(helperResult.transition.action, "continue", "helper must submit through core path");
+
+let missingExecutorMessage = "";
+try {
+  await executorFreeRuntime.executeCurrentStep("phase5-default-permission");
+} catch (error) {
+  missingExecutorMessage = error instanceof Error ? error.message : String(error);
+}
+assert(
+  missingExecutorMessage.includes("no ModelExecutor is configured"),
+  "convenience execution must fail clearly when no executor is configured",
+);
+
 console.log("Phase 5 host-native boundary tests passed");

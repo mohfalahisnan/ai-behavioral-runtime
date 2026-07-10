@@ -13,9 +13,10 @@ import type {
   HostCapabilities,
   EnforcementLevel,
   PermissionPolicy,
+  ExecutionResult,
 } from "../spec/index.js";
 import { ConstraintExtractor, ConstraintRegistry } from "../constraints/index.js";
-import { InvalidRunStateError, RunNotFoundError } from "./errors.js";
+import { InvalidRunStateError, RunNotFoundError, ExecutorNotConfiguredError } from "./errors.js";
 import { ProtocolRegistry } from "./protocol-registry.js";
 import {
   InMemoryRuntimeStateStore,
@@ -346,39 +347,30 @@ export class BehavioralRuntime {
     return this.#compiler.compile(protocol, step, state.constraintRegistry);
   }
 
-  async executeCurrentStep(runId: RunId): Promise<RuntimeStepResult> {
+  async submitStepResult(
+    runId: RunId,
+    execution: ExecutionResult,
+  ): Promise<RuntimeStepResult> {
     const state = await this.getState(runId);
     if (state.status !== "active") {
       throw new InvalidRunStateError(
-        `Cannot execute run '${runId}' while status is '${state.status}'`,
+        `Cannot submit a result for run '${runId}' while status is '${state.status}'`,
       );
     }
 
     const { protocol, step } = this.#resolveCurrent(state);
     const contract = this.#compiler.compile(protocol, step, state.constraintRegistry);
     const inputValidation = this.#validateInput(step, state, contract);
-
     if (inputValidation.status !== "passed") {
       const transition: TransitionTrace = {
         action: "block",
         reason: "Current context does not satisfy the step input contract",
       };
       const blocked = this.#applyBlockedTransition(state, transition.reason);
-      const trace = this.#createTrace(
-        blocked,
-        contract,
-        inputValidation,
-        transition,
-      );
+      const trace = this.#createTrace(blocked, contract, inputValidation, transition);
       const saved = { ...blocked, traces: [...blocked.traces, trace] };
       await this.#store.save(saved);
-
-      return {
-        state: saved,
-        contract,
-        validation: inputValidation,
-        transition,
-      };
+      return { state: saved, contract, validation: inputValidation, transition };
     }
 
     const attemptsByStep = {
@@ -386,14 +378,6 @@ export class BehavioralRuntime {
       [step.id]: (state.attemptsByStep[step.id] ?? 0) + 1,
     };
     const executingState: RuntimeRunState = { ...state, attemptsByStep };
-
-    const execution = await this.#executor!.execute({
-      runId: state.runId,
-      phaseId: state.phaseId,
-      contract,
-      context: state.context,
-    });
-
     const validation = await this.#validation.validate({
       step,
       constraints: contract.constraints,
@@ -401,14 +385,12 @@ export class BehavioralRuntime {
       constraintIdAliases: contract.constraintIdAliases,
       execution,
     });
-
     const transition = this.#transitions.resolve({
       step,
       execution,
       validation,
       retriesUsed: state.retriesByStep[step.id] ?? 0,
     });
-
     const transitioned = this.#applyTransition(
       executingState,
       step,
@@ -424,14 +406,34 @@ export class BehavioralRuntime {
     );
     const saved = { ...transitioned, traces: [...transitioned.traces, trace] };
     await this.#store.save(saved);
+    return { state: saved, contract, execution, validation, transition };
+  }
 
-    return {
-      state: saved,
-      contract,
-      execution,
-      validation,
-      transition,
-    };
+  async executeCurrentStep(runId: RunId): Promise<RuntimeStepResult> {
+    if (!this.#executor) throw new ExecutorNotConfiguredError();
+
+    const prepared = await this.prepareCurrentStep(runId);
+    if (!prepared.readyForExecution) {
+      const state = await this.getState(runId);
+      const transition: TransitionTrace = {
+        action: "block",
+        reason: state.blockedReason ?? "Current step is not ready for execution",
+      };
+      return {
+        state,
+        contract: prepared.contract,
+        validation: prepared.inputValidation,
+        transition,
+      };
+    }
+
+    const execution = await this.#executor.execute({
+      runId: prepared.runId,
+      phaseId: prepared.phaseId,
+      contract: prepared.contract,
+      context: prepared.context,
+    });
+    return this.submitStepResult(runId, execution);
   }
 
   #resolveCurrent(state: RuntimeRunState): {

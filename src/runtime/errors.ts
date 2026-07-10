@@ -25,3 +25,10 @@ export class InvalidRunStateError extends BehavioralRuntimeError {
     this.name = "InvalidRunStateError";
   }
 }
+
+export class ExecutorNotConfiguredError extends BehavioralRuntimeError {
+  constructor() {
+    super("Cannot execute current step because no ModelExecutor is configured");
+    this.name = "ExecutorNotConfiguredError";
+  }
+}
