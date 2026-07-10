@@ -11,7 +11,8 @@
     "test:phase5": "npm run typecheck && npm run build && node dist/tests/phase5-host-native-boundary.test.js",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
-    "smoke": "npm run build && node dist/examples/minimal-runtime.js"
+    "smoke": "npm run build && node dist/examples/minimal-runtime.js",
+    "smoke:host-native": "npm run build && node dist/examples/host-native-runtime.js"
   },
   "devDependencies": {
     "typescript": "^5.8.3"

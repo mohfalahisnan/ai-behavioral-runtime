@@ -1,15 +1,15 @@
 # AI Behavioral Runtime
 
-A model-agnostic behavioral runtime for making AI behavior more predictable, inspectable, correctable, and portable across different model providers.
+A self-contained local behavioral runtime delivered through host-native AI plugins. The plugin governs behavior; the host owns model execution.
 
 ## Core architecture
 
 ```text
 Protocol
 → Workflow
-→ Step
-→ Reasoning
-→ Execution
+→ Prepare Step
+→ Host Model Execution
+→ Submit Result
 → Validation
 → Transition
 ```
@@ -34,11 +34,12 @@ The repository currently contains:
 - immutable constraint snapshots with registration and reaffirmation history,
 - ignored-constraint reasons and complete per-step compliance accounting,
 - explicit completed-phase transitions that preserve registry history and traces,
-- generic single-model execution boundary,
-- deterministic input and output checks,
-- validation-driven continue, retry, block, and complete transitions,
-- in-memory state persistence behind an interface,
-- execution traces,
+- executor-free `prepareCurrentStep()` / `submitStepResult()` lifecycle,
+- optional direct `ModelExecutor` convenience execution,
+- host capability and enforcement-level modeling,
+- first-class persisted permission policy,
+- governance facts in execution traces,
+- local persistence behind `RuntimeStateStore`,
 - three declarative categories: `discussion`, `task_execution`, and `coding_task`,
 - distinct validation-driven workflows on one generic runtime,
 - manual category selection through `StartRunInput.categoryId`,
@@ -53,6 +54,10 @@ The repository currently contains:
 - [Phase 4 constraint registry](docs/constraints/README.md)
 - [Protocol vocabulary](docs/specification/vocabulary.md)
 - [Core invariants](docs/specification/invariants.md)
+- [Host-native product boundary](docs/HOST-NATIVE-PRODUCT-BOUNDARY.md)
+- [Host-native runtime lifecycle](docs/runtime/host-native-lifecycle.md)
+- [First host target](docs/hosts/first-host-target.md)
+- [Phase 5 implementation plan](docs/superpowers/plans/2026-07-10-phase-5-host-native-product-boundary.md)
 
 ## Validation
 
@@ -64,10 +69,12 @@ npm run smoke
 
 ## Scope boundary
 
-The core intentionally excludes mandatory:
+The product is plugin-first and local-first. It does not require:
 
-- multi-agent execution,
-- model routing,
-- provider-specific APIs.
+- a hosted backend,
+- a public SDK,
+- direct provider API credentials,
+- mandatory model routing,
+- mandatory multi-agent execution.
 
-Those remain optional execution-layer concerns and must not change protocol semantics.
+The host owns model execution. Host-specific capabilities must not leak into protocol semantics, and enforcement claims must match actual hooks.
