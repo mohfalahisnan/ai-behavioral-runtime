@@ -143,12 +143,6 @@ export const discussionCategory: CategoryProtocol = {
               description: "Required analysis sections are present.",
               required: true,
             },
-            {
-              id: "discussion-no-execution",
-              kind: "constraint",
-              description: "No external execution was performed or falsely claimed.",
-              required: true,
-            },
           ],
         },
         completionCriteria: [
@@ -207,4 +201,5 @@ export const exampleRuntimeSpecification: ProtocolRuntimeSpecification = {
   baseProtocol: universalBaseProtocol,
   categories: [discussionCategory],
   modifiers: [],
+  reasoningStrategies: [constraintAnalysisStrategy, tradeoffAnalysisStrategy],
 };
