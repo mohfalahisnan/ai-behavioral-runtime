@@ -1,0 +1,12 @@
+execution_plan:
+  waves:
+    - wave: 1
+      tasks: ["1a"]
+    - wave: 2
+      tasks: ["2a"]
+    - wave: 3
+      tasks: ["3a"]
+    - wave: 4
+      tasks: ["4a"]
+    - wave: 5
+      tasks: ["5a"]

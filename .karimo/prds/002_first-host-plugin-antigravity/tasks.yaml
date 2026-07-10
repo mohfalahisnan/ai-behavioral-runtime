@@ -1,0 +1,72 @@
+tasks:
+  - id: "1a"
+    title: "Define Antigravity Host Adapter and Capability Mapping"
+    description: "Implement AntigravityHostAdapter implementing the HostAdapter contract with ANTIGRAVITY_HOST_CAPABILITIES."
+    complexity: 4
+    wave: 1
+    priority: "must"
+    depends_on: []
+    files_affected:
+      - path: "src/host/antigravity/adapter.ts"
+        action: "create"
+    success_criteria:
+      - "AntigravityHostAdapter correctly implements HostAdapter"
+      - "Capabilities flags match fully governed and interceptable specifications"
+
+  - id: "2a"
+    title: "Implement Lightweight native HTTP Hook Server"
+    description: "Build AntigravityHookServer using native Node http module to listen on ORCA_AGENT_HOOK_PORT and process callbacks."
+    complexity: 5
+    wave: 2
+    priority: "must"
+    depends_on: ["1a"]
+    files_affected:
+      - path: "src/host/antigravity/server.ts"
+        action: "create"
+    success_criteria:
+      - "AntigravityHookServer compiles and handles POST requests on /hook/antigravity"
+      - "Correctly parses webhook payloads asynchronously"
+
+  - id: "3a"
+    title: "Implement Plugin Orchestrator and Hook Lifecycle Coordinator"
+    description: "Create AntigravityPlugin orchestrating BehavioralRuntime and Hook Server events (PreInvocation, PostToolUse, Stop, PostInvocation)."
+    complexity: 5
+    wave: 3
+    priority: "must"
+    depends_on: ["2a"]
+    files_affected:
+      - path: "src/host/antigravity/plugin.ts"
+        action: "create"
+    success_criteria:
+      - "AntigravityPlugin correctly coordinates runtime events with hook server triggers"
+      - "Triggers prepare/submit step actions on hook invocation"
+
+  - id: "4a"
+    title: "Integrate workspace persistence and configuration loading"
+    description: "Manage trace and state storage in local files under a .behavioral-runtime/ directory."
+    complexity: 4
+    wave: 4
+    priority: "must"
+    depends_on: ["3a"]
+    files_affected:
+      - path: "src/host/antigravity/plugin.ts"
+        action: "modify"
+    success_criteria:
+      - "Automatically reads and writes workspace state files"
+      - "Maintains run state history local to workspace root"
+
+  - id: "5a"
+    title: "Build Test Suite for Antigravity Webhooks & Lifecycle Verification"
+    description: "Write integration tests simulating Orca webhook delivery and validating adapter execution lifecycle."
+    complexity: 5
+    wave: 5
+    priority: "should"
+    depends_on: ["4a"]
+    files_affected:
+      - path: "tests/phase11-antigravity-plugin.test.ts"
+        action: "create"
+      - path: "package.json"
+        action: "modify"
+    success_criteria:
+      - "Tests successfully simulate hook server callback invocations"
+      - "All test runs execute cleanly under npm test"
