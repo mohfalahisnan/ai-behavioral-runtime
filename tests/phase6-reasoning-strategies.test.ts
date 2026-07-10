@@ -3,6 +3,13 @@ import {
   SpecificationError,
   constraintAnalysisStrategy,
   initialRuntimeSpecification,
+  adversarialReviewStrategy,
+  evidenceGatheringStrategy,
+  hypothesisTestingStrategy,
+  reasoningStrategies,
+  riskAnalysisStrategy,
+  rootCauseAnalysisStrategy,
+  verificationStrategy,
 } from "../src/index.js";
 import type {
   ProtocolRuntimeSpecification,
@@ -82,5 +89,57 @@ for (const invalid of invalidDefinitions) {
 }
 
 new ProtocolRegistry(initialRuntimeSpecification);
+
+const expectedStrategyIds = [
+  "constraint_analysis",
+  "evidence_gathering",
+  "hypothesis_testing",
+  "root_cause_analysis",
+  "tradeoff_analysis",
+  "risk_analysis",
+  "adversarial_review",
+  "verification",
+] as const;
+
+assertEqual(reasoningStrategies.length, expectedStrategyIds.length, "catalog size");
+assertEqual(
+  new Set(reasoningStrategies.map((strategy) => strategy.id)).size,
+  expectedStrategyIds.length,
+  "catalog IDs must be unique",
+);
+assertEqual(
+  reasoningStrategies.map((strategy) => strategy.id).join(","),
+  expectedStrategyIds.join(","),
+  "catalog order and IDs",
+);
+assertEqual(
+  initialRuntimeSpecification.reasoningStrategies,
+  reasoningStrategies,
+  "initial specification must use the canonical catalog",
+);
+assertEqual(initialRuntimeSpecification.version, "0.4.0", "Phase 6 specification version");
+
+for (const strategy of reasoningStrategies) {
+  assert(strategy.objective.trim().length > 0, `${strategy.id} objective`);
+  for (const field of [
+    "behaviors",
+    "requiredChecks",
+    "prohibitedShortcuts",
+    "evidenceExpectations",
+  ] as const) {
+    assert(strategy[field].length > 0, `${strategy.id}.${field} must not be empty`);
+    assert(
+      strategy[field].every((entry) => entry.trim().length > 0),
+      `${strategy.id}.${field} entries must be nonblank`,
+    );
+  }
+}
+
+assertEqual(reasoningStrategies[1], evidenceGatheringStrategy, "evidence export");
+assertEqual(reasoningStrategies[2], hypothesisTestingStrategy, "hypothesis export");
+assertEqual(reasoningStrategies[3], rootCauseAnalysisStrategy, "root-cause export");
+assertEqual(reasoningStrategies[5], riskAnalysisStrategy, "risk export");
+assertEqual(reasoningStrategies[6], adversarialReviewStrategy, "adversarial export");
+assertEqual(reasoningStrategies[7], verificationStrategy, "verification export");
 
 console.log("Phase 6 reasoning strategy tests passed");
