@@ -20,35 +20,42 @@ Core rule:
 
 ## Current status
 
-**Phase 1 — Specification** is implemented.
+**Phase 2 — Minimal Runtime** is implemented.
 
 The repository currently contains:
 
-- strict TypeScript contracts for the core protocol vocabulary,
-- broad category and modifier abstractions,
-- workflow steps and runtime-controlled transitions,
-- reusable reasoning strategy definitions,
-- a first-class constraint registry model,
-- validation and trace contracts,
-- a generic single-executor boundary,
-- one complete declarative `discussion` category example.
+- strict TypeScript contracts for the protocol vocabulary,
+- a protocol registry with conflict and reference validation,
+- manual category selection and workflow initialization,
+- minimal effective step-contract compilation,
+- resolved reasoning strategy definitions,
+- relevant constraint selection,
+- generic single-model execution boundary,
+- deterministic input and output checks,
+- validation-driven continue, retry, block, and complete transitions,
+- in-memory state persistence behind an interface,
+- execution traces,
+- one complete declarative `discussion` category,
+- an end-to-end smoke test with both retry and block failure paths.
 
 ## Documentation
 
 - [Implementation plan](docs/PLAN.md)
 - [Phase 1 specification](docs/specification/README.md)
+- [Phase 2 minimal runtime](docs/runtime/README.md)
 - [Protocol vocabulary](docs/specification/vocabulary.md)
 - [Core invariants](docs/specification/invariants.md)
 
-## Type checking
+## Validation
 
 ```bash
 npm run typecheck
+npm run smoke
 ```
 
 ## Scope boundary
 
-The core specification intentionally excludes mandatory:
+The core intentionally excludes mandatory:
 
 - multi-agent execution,
 - model routing,
