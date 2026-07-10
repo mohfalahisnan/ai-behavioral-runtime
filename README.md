@@ -1,8 +1,8 @@
 # AI Behavioral Runtime
 
-A model-agnostic behavioral runtime for making AI interactions more predictable, inspectable, correctable, and portable across model providers.
+A model-agnostic behavioral runtime for making AI behavior more predictable, inspectable, correctable, and portable across different model providers.
 
-## Core idea
+## Core architecture
 
 ```text
 Protocol
@@ -14,24 +14,44 @@ Protocol
 → Transition
 ```
 
-The runtime governs state, constraints, permissions, validation, retries, and transitions. The model performs bounded reasoning and generation inside the active step contract.
+Core rule:
+
+> **The model reasons. The runtime governs. Validation decides whether execution may continue.**
 
 ## Current status
 
-Architecture and implementation planning phase.
+**Phase 1 — Specification** is implemented.
 
-## Docs
+The repository currently contains:
 
-- [Implementation Plan](docs/PLAN.md)
+- strict TypeScript contracts for the core protocol vocabulary,
+- broad category and modifier abstractions,
+- workflow steps and runtime-controlled transitions,
+- reusable reasoning strategy definitions,
+- a first-class constraint registry model,
+- validation and trace contracts,
+- a generic single-executor boundary,
+- one complete declarative `discussion` category example.
 
-## Initial scope
+## Documentation
 
-- Single-model core runtime
-- Broad category protocols
-- Step-specific reasoning strategies
-- Constraint registry
-- First-class validation
-- Runtime-owned transitions
-- Traceability and replay
+- [Implementation plan](docs/PLAN.md)
+- [Phase 1 specification](docs/specification/README.md)
+- [Protocol vocabulary](docs/specification/vocabulary.md)
+- [Core invariants](docs/specification/invariants.md)
 
-Multi-agent execution and model routing are intentionally excluded from the core architecture and remain optional future extensions.
+## Type checking
+
+```bash
+npm run typecheck
+```
+
+## Scope boundary
+
+The core specification intentionally excludes mandatory:
+
+- multi-agent execution,
+- model routing,
+- provider-specific APIs.
+
+Those remain optional execution-layer concerns and must not change protocol semantics.
