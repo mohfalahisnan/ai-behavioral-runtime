@@ -1,7 +1,0 @@
-sources:
-  - id: node_docs
-    name: Node.js Documentation
-    url: https://nodejs.org/api/http.html
-  - id: orca_docs
-    name: Orca Agent hooks
-    url: C:\Users\User\.gemini\config\hooks.json
