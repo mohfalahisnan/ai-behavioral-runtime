@@ -20,7 +20,7 @@ Core rule:
 
 ## Current status
 
-**Phase 2 — Minimal Runtime** is implemented.
+**Phase 3 — Initial Categories** is implemented.
 
 The repository currently contains:
 
@@ -35,7 +35,9 @@ The repository currently contains:
 - validation-driven continue, retry, block, and complete transitions,
 - in-memory state persistence behind an interface,
 - execution traces,
-- one complete declarative `discussion` category,
+- three declarative categories: `discussion`, `task_execution`, and `coding_task`,
+- distinct validation-driven workflows on one generic runtime,
+- manual category selection through `StartRunInput.categoryId`,
 - an end-to-end smoke test with both retry and block failure paths.
 
 ## Documentation
@@ -43,6 +45,7 @@ The repository currently contains:
 - [Implementation plan](docs/PLAN.md)
 - [Phase 1 specification](docs/specification/README.md)
 - [Phase 2 minimal runtime](docs/runtime/README.md)
+- [Phase 3 initial category protocols](docs/protocols/README.md)
 - [Protocol vocabulary](docs/specification/vocabulary.md)
 - [Core invariants](docs/specification/invariants.md)
 
@@ -50,6 +53,7 @@ The repository currently contains:
 
 ```bash
 npm run typecheck
+npm test
 npm run smoke
 ```
 
