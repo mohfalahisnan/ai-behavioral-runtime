@@ -1,0 +1,88 @@
+tasks:
+  - id: "1a"
+    title: "Define Validator Interfaces and Pipeline Registry"
+    description: "Expose clean Validator interfaces and update ValidationPipeline to support dynamic validator handler registration."
+    complexity: 4
+    wave: 1
+    priority: "must"
+    depends_on: []
+    files_affected:
+      - path: "src/runtime/validation.ts"
+        action: "modify"
+    success_criteria:
+      - "ValidationPipeline supports registering new custom handlers dynamically"
+      - "New custom handlers can run validation successfully without hardcoded types"
+
+  - id: "2a"
+    title: "Implement Concrete Handlers for Completion Criteria, Deterministic Callbacks, and Model Evaluation"
+    description: "Write concrete classes for completion_criteria, deterministic, and model validators as defined in the spec."
+    complexity: 6
+    wave: 2
+    priority: "must"
+    depends_on: ["1a"]
+    files_affected:
+      - path: "src/runtime/validation.ts"
+        action: "modify"
+    success_criteria:
+      - "Completion criteria, deterministic, and model handlers are implemented"
+      - "Deterministic handler handles client validation callbacks correctly"
+
+  - id: "3a"
+    title: "Integrate Bounded Retries with Validation Results"
+    description: "Connect step attempts and retries within submitStepResult to retry validation status failures according to step retryPolicy."
+    complexity: 5
+    wave: 3
+    priority: "must"
+    depends_on: ["2a"]
+    files_affected:
+      - path: "src/runtime/behavioral-runtime.ts"
+        action: "modify"
+      - path: "src/runtime/transition-resolver.ts"
+        action: "modify"
+    success_criteria:
+      - "SubmitStepResult respects step retry limits and triggers transitions"
+      - "State increments step retries correctly upon validation failures"
+
+  - id: "4a"
+    title: "Implement Automatic Turn Category and Modifier Resolution"
+    description: "Create a turn classification and resolution module that classifies turn text to a CategoryId and ModifierId."
+    complexity: 6
+    wave: 4
+    priority: "must"
+    depends_on: ["3a"]
+    files_affected:
+      - path: "src/runtime/turn-resolver.ts"
+        action: "create"
+      - path: "src/runtime/behavioral-runtime.ts"
+        action: "modify"
+    success_criteria:
+      - "Turn resolver maps user turn text to category and modifiers"
+      - "Resolver outputs are inspectable and respect explicit permissions"
+
+  - id: "5a"
+    title: "Implement Trace Querying and Replay Harness"
+    description: "Create trace querying APIs and a deterministic replay execution harness to step through past trace state changes."
+    complexity: 5
+    wave: 5
+    priority: "must"
+    depends_on: ["4a"]
+    files_affected:
+      - path: "src/runtime/trace-inspector.ts"
+        action: "create"
+    success_criteria:
+      - "TraceInspector can parse, filter, and inspect past traces"
+      - "Replay execution harness reconstructs run state correctly"
+
+  - id: "6a"
+    title: "Build Evaluation Benchmark Suite"
+    description: "Create a benchmark suite comparing baseline prompts, giant monolithic prompts, and behavioral runtime execution metrics."
+    complexity: 5
+    wave: 6
+    priority: "should"
+    depends_on: ["5a"]
+    files_affected:
+      - path: "tests/phase10-evaluation.test.ts"
+        action: "create"
+    success_criteria:
+      - "Benchmark tracks success rate, constraint violation rate, tokens, latency"
+      - "Tests run cleanly and output comparison reports"
