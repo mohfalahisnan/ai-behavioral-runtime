@@ -1,0 +1,34 @@
+import type { ConstraintId } from "./primitives.js";
+import type {
+  CategoryId,
+  ModifierId,
+  PhaseId,
+  RunId,
+  StepId,
+  StrategyId,
+} from "./primitives.js";
+import type { ValidationResult } from "./validation.js";
+import type { TransitionAction } from "./workflow.js";
+
+export interface EffectiveProtocolTrace {
+  readonly categoryId: CategoryId;
+  readonly modifierIds: readonly ModifierId[];
+  readonly constraintIds: readonly ConstraintId[];
+  readonly reasoningStrategyIds: readonly StrategyId[];
+}
+
+export interface TransitionTrace {
+  readonly action: TransitionAction;
+  readonly to?: StepId;
+  readonly reason: string;
+}
+
+export interface ExecutionTrace {
+  readonly runId: RunId;
+  readonly phaseId: PhaseId;
+  readonly stepId: StepId;
+  readonly protocol: EffectiveProtocolTrace;
+  readonly validation?: ValidationResult;
+  readonly transition?: TransitionTrace;
+  readonly timestamp: string;
+}
