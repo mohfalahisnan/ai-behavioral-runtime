@@ -1,32 +1,32 @@
 {
-  "status": "ready",
+  "status": "completed",
   "slug": "proceed-phase-7-10",
   "name": "proceed-phase-7-10",
-  "current_wave": 1,
+  "current_wave": 6,
   "execution_mode": "direct-to-main",
   "tasks": {
     "1a": {
-      "status": "pending",
+      "status": "done",
       "wave": 1
     },
     "2a": {
-      "status": "pending",
+      "status": "done",
       "wave": 2
     },
     "3a": {
-      "status": "pending",
+      "status": "done",
       "wave": 3
     },
     "4a": {
-      "status": "pending",
+      "status": "done",
       "wave": 4
     },
     "5a": {
-      "status": "pending",
+      "status": "done",
       "wave": 5
     },
     "6a": {
-      "status": "pending",
+      "status": "done",
       "wave": 6
     }
   }

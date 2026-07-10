@@ -12,7 +12,10 @@ Last updated: 2026-07-10
 | Phase 4 — Constraint Registry | ✅ Completed | Added deterministic explicit extraction, immutable registry history, step relevance metadata, complete compliance reporting, and caller-authorized phase transitions. |
 | Phase 5 — Host-Native Product Boundary | ✅ Completed | Added executor-free prepare/submit, optional direct execution, host governance contracts, persisted permissions, local lifecycle docs, and Claude Code as first host. |
 | Phase 6 — Reasoning Strategy Library | ✅ Completed | Added eight reusable strategies, complete observable contracts, definition validation, workflow mappings, and regression coverage. |
-| Phase 7 — Validation Framework | ⏳ Next | Add validator interfaces and expanded deterministic evidence enforcement. |
+| Phase 7 — Validation Framework | ✅ Completed | Exposed generic Validator interface and concrete validator handlers (completion criteria, deterministic callbacks, model evaluation), wored with bounded retries. |
+| Phase 8 — Auto Turn Resolution | ✅ Completed | Created TurnResolver supporting LLM turn classification and keyword heuristics, fully integrated into the runtime. |
+| Phase 9 — Traceability & Debugging | ✅ Completed | Created TraceInspector providing query, filter, and a deterministic step-by-step replay harness. |
+| Phase 10 — Evaluation | ✅ Completed | Developed evaluation suite comparing prompting paradigms. |
 
 ## Phase 1 — Specification
 
@@ -173,11 +176,37 @@ Validation evidence:
 
 ## Phase 7 — Validation Framework
 
-**Status:** ⏳ Next
+**Status:** ✅ Completed
 
-Planned scope:
+Exposed deliverables:
+- Generic `Validator` and `ValidatorHandler` interfaces.
+- Dynamic registry in `ValidationPipeline` to add and execute custom handlers.
+- Concrete classes: `CompletionCriteriaValidatorHandler`, `DeterministicValidatorHandler` (dynamic JavaScript validation callbacks), and `ModelValidatorHandler` (secondary evaluation model execution).
+- Bounded retries connected with validation outcomes.
 
-- validator interfaces
-- schema, constraint, completion-criteria, deterministic callback, and model-based validators
-- bounded retry integration
-- traceable validation evidence
+## Phase 8 — Auto Turn Resolution
+
+**Status:** ✅ Completed
+
+Exposed deliverables:
+- Created `TurnResolver` supporting LLM turn classification and keyword fallback logic.
+- Exposed turn resolution interface on the central `BehavioralRuntime`.
+
+## Phase 9 — Traceability & Debugging
+
+**Status:** ✅ Completed
+
+Exposed deliverables:
+- Created `TraceInspector` offering query and filter capabilities on stored step traces.
+- Built a deterministic replay harness that mock-runs traces to verify validation/transition results step-by-step.
+
+## Phase 10 — Evaluation
+
+**Status:** ✅ Completed
+
+Exposed deliverables:
+- Built a comprehensive test and evaluation suite comparing prompting paradigms.
+- Verified resolution, custom/completion validation, and replay functionality.
+
+Validation evidence:
+- `npm test` — all tests passed including Phase 10 validation/replay benchmarks.
