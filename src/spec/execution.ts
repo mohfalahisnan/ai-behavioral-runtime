@@ -37,13 +37,16 @@ export interface ModelExecutionInput {
   readonly context: JsonObject;
 }
 
-export interface ModelExecutionResult {
+export interface ExecutionResult {
   readonly output: JsonObject;
   readonly evidence?: readonly string[];
   readonly warnings?: readonly string[];
   readonly completedCriteria?: readonly string[];
   readonly constraintCompliance?: readonly ConstraintCompliance[];
 }
+
+/** @deprecated Use ExecutionResult at the host-neutral boundary. */
+export type ModelExecutionResult = ExecutionResult;
 
 /**
  * Core execution abstraction.
@@ -52,5 +55,5 @@ export interface ModelExecutionResult {
  * provider-specific APIs, or multi-agent execution.
  */
 export interface ModelExecutor {
-  execute(input: ModelExecutionInput): Promise<ModelExecutionResult>;
+  execute(input: ModelExecutionInput): Promise<ExecutionResult>;
 }

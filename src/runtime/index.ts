@@ -1,5 +1,6 @@
 export * from "./behavioral-runtime.js";
 export * from "./errors.js";
+export * from "./host-governance.js";
 export * from "./protocol-registry.js";
 export * from "./state-store.js";
 export * from "./step-compiler.js";

@@ -1,5 +1,7 @@
 export * from "./constraints.js";
 export * from "./execution.js";
+export * from "./host.js";
+export * from "./permissions.js";
 export * from "./phases.js";
 export * from "./primitives.js";
 export * from "./protocol.js";
