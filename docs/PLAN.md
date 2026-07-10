@@ -935,11 +935,14 @@ Include only:
 - task_execution
 - coding_task
 
-5 Reasoning Strategies:
+8 Reasoning Strategies:
 - constraint_analysis
 - evidence_gathering
+- hypothesis_testing
 - root_cause_analysis
 - tradeoff_analysis
+- risk_analysis
+- adversarial_review
 - verification
 
 1 Constraint Registry

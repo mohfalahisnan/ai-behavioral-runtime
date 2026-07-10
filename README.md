@@ -29,6 +29,9 @@ The repository currently contains:
 - manual category selection and workflow initialization,
 - minimal effective step-contract compilation,
 - resolved reasoning strategy definitions,
+- eight reusable reasoning strategies with complete observable contracts,
+- deterministic rejection of blank or incomplete strategy definitions,
+- strategy composition across existing discussion, task-execution, and coding workflows,
 - relevant constraint selection,
 - deterministic explicit constraint extraction with stable semantic IDs,
 - immutable constraint snapshots with registration and reaffirmation history,
@@ -58,6 +61,9 @@ The repository currently contains:
 - [Host-native runtime lifecycle](docs/runtime/host-native-lifecycle.md)
 - [First host target](docs/hosts/first-host-target.md)
 - [Phase 5 implementation plan](docs/superpowers/plans/2026-07-10-phase-5-host-native-product-boundary.md)
+- [Reasoning strategy library](docs/reasoning/README.md)
+- [Phase 6 design](docs/superpowers/specs/2026-07-10-phase-6-reasoning-strategy-library-design.md)
+- [Phase 6 implementation plan](docs/superpowers/plans/2026-07-10-phase-6-reasoning-strategy-library.md)
 
 ## Validation
 

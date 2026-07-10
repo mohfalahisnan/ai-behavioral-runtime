@@ -557,11 +557,14 @@ The MVP should contain:
 
 1 Constraint Registry
 
-5 Initial Reasoning Strategies:
+8 Initial Reasoning Strategies:
 - constraint_analysis
 - evidence_gathering
+- hypothesis_testing
 - root_cause_analysis
 - tradeoff_analysis
+- risk_analysis
+- adversarial_review
 - verification
 
 3 Validators:
