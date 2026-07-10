@@ -1,5 +1,6 @@
 import {
   BehavioralRuntime,
+  ConstraintCollisionError,
   ConstraintExtractor,
   ConstraintRegistry,
 } from "../src/index.js";
@@ -207,6 +208,82 @@ const conflictingCanonicalAliasSnapshot = {
 await assertRejectsExactly(
   () => registry.normalize(conflictingCanonicalAliasSnapshot),
   `Canonical constraint ID '${canonicalLegacyA.id}' cannot alias '${canonicalConflictC.id}'`,
+);
+
+const persistedDuplicateCatalog = {
+  constraints: Object.freeze([canonicalLegacyA]),
+  registeredConstraints: Object.freeze([canonicalLegacyA, canonicalLegacyB]),
+  constraintIdAliases: makeAliasMap([
+    [canonicalLegacyA.id, canonicalLegacyA.id],
+    [canonicalLegacyB.id, canonicalLegacyB.id],
+  ]),
+  history: canonicalSnapshot.history,
+};
+const normalizedDuplicateCatalog = registry.normalize(persistedDuplicateCatalog);
+assertEqual(
+  normalizedDuplicateCatalog.constraintIdAliases[canonicalLegacyA.id],
+  canonicalLegacyA.id,
+  "first registered canonical ID must retain its self-map",
+);
+assertEqual(
+  normalizedDuplicateCatalog.constraintIdAliases[canonicalLegacyB.id],
+  canonicalLegacyA.id,
+  "stale duplicate identity alias must repair to the first canonical ID",
+);
+
+await assertRejectsExactly(
+  () => registry.normalize({
+    ...canonicalSnapshot,
+    constraints: Object.freeze([canonicalConflictC]),
+  }),
+  `Active constraint '${canonicalConflictC.id}' is not present in the registered constraint catalog`,
+);
+
+try {
+  registry.normalize({
+    ...canonicalSnapshot,
+    constraints: Object.freeze([
+      { ...canonicalLegacyA, rule: "Different active semantic reuse of registered ID" },
+    ]),
+  });
+  throw new Error("expected active constraint ID collision");
+} catch (error) {
+  assert(
+    error instanceof ConstraintCollisionError,
+    "active registered-ID semantic reuse must throw ConstraintCollisionError",
+  );
+  assertEqual(
+    error.message,
+    `Constraint ID collision detected for '${canonicalLegacyA.id}'`,
+    "active registered-ID collision message must be deterministic",
+  );
+}
+
+const activeAliasHistory = canonicalSnapshot.history;
+const normalizedActiveAlias = registry.normalize({
+  ...canonicalSnapshot,
+  constraints: Object.freeze([canonicalLegacyB]),
+  registeredConstraints: Object.freeze([canonicalLegacyA]),
+  constraintIdAliases: makeAliasMap([
+    [canonicalLegacyA.id, canonicalLegacyA.id],
+    [canonicalLegacyB.id, canonicalLegacyB.id],
+  ]),
+  history: activeAliasHistory,
+});
+assertEqual(
+  normalizedActiveAlias.constraints[0]?.id,
+  canonicalLegacyA.id,
+  "active alias with registered semantics must activate the canonical constraint",
+);
+assertEqual(
+  normalizedActiveAlias.constraintIdAliases[canonicalLegacyB.id],
+  canonicalLegacyA.id,
+  "active alias absent from catalog must repair to the canonical ID",
+);
+assertEqual(
+  normalizedActiveAlias.history,
+  activeAliasHistory,
+  "active alias repair must preserve history",
 );
 
 const aliasChainBase = registry.register(

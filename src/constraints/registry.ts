@@ -192,6 +192,24 @@ export class ConstraintRegistry {
       constraintIdAliases[candidate.id] = candidate.id;
     }
 
+    const activeIds = new Set<string>();
+    for (const constraint of snapshot.constraints) {
+      const canonicalValue = canonicalConstraintValue(constraint);
+      const priorCanonical = canonicalById.get(constraint.id);
+      if (priorCanonical !== undefined && priorCanonical !== canonicalValue) {
+        throw new ConstraintCollisionError(constraint.id);
+      }
+      const registered = byCanonical.get(canonicalValue);
+      if (!registered) {
+        throw new Error(
+          `Active constraint '${constraint.id}' is not present in the registered constraint catalog`,
+        );
+      }
+      canonicalById.set(constraint.id, canonicalValue);
+      constraintIdAliases[constraint.id] = registered.id;
+      activeIds.add(registered.id);
+    }
+
     const providedAliases = snapshot.constraintIdAliases as unknown;
     const providedEntries = [...aliasEntries(providedAliases)].sort(([left], [right]) =>
       compareConstraintIds(left, right),
@@ -231,6 +249,15 @@ export class ConstraintRegistry {
           break;
         }
         const derived = ownAlias(derivedAliases, current);
+        const providedTarget = providedByAlias.get(current);
+        if (
+          derived !== undefined &&
+          derived !== current &&
+          providedTarget === current
+        ) {
+          canonicalId = derived;
+          break;
+        }
         if (!providedByAlias.has(current) && derived !== undefined) {
           canonicalId = derived;
           break;
@@ -242,15 +269,14 @@ export class ConstraintRegistry {
           );
         }
 
-        const target = providedByAlias.get(current);
-        if (target === undefined) {
+        if (providedTarget === undefined) {
           throw new Error(
             `Constraint alias '${path.at(-1) ?? alias}' targets unknown constraint ID '${current}'`,
           );
         }
         pathIndexes.set(current, path.length);
         path.push(current);
-        current = target;
+        current = providedTarget;
       }
 
       for (const visited of path) resolvedAliases.set(visited, canonicalId);
@@ -268,11 +294,6 @@ export class ConstraintRegistry {
       constraintIdAliases[alias] = canonicalId;
     }
 
-    const activeIds = new Set<string>();
-    for (const constraint of snapshot.constraints) {
-      const registered = byCanonical.get(canonicalConstraintValue(constraint));
-      if (registered) activeIds.add(registered.id);
-    }
     const constraints = registeredConstraints.filter((constraint) =>
       activeIds.has(constraint.id),
     );
