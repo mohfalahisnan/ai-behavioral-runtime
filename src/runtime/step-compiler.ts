@@ -25,6 +25,9 @@ export class StepCompiler {
     const activeSnapshot = snapshot ?? {
       constraints: protocolConstraints ?? [],
       registeredConstraints: protocolConstraints ?? [],
+      constraintIdAliases: Object.fromEntries(
+        (protocolConstraints ?? []).map((constraint) => [constraint.id, constraint.id]),
+      ),
       history: [],
     };
     const selection = this.constraints.select(

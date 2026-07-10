@@ -75,12 +75,30 @@ export class ValidationPipeline {
     const firstById = new Map<string, ConstraintCompliance>();
     const duplicateIds = new Set<string>();
     const unknownIds = new Set<string>();
+    const invalidStatusEntries = new Set<string>();
+    const validStatuses = new Set<unknown>([
+      "satisfied",
+      "violated",
+      "not_applicable",
+      "inconclusive",
+    ]);
 
     for (const item of reported) {
+      const reportedStatus: unknown = item.status;
+      const normalizedItem: ConstraintCompliance = validStatuses.has(reportedStatus)
+        ? item
+        : {
+            ...item,
+            status: "inconclusive",
+            explanation: `Invalid executor compliance status '${String(reportedStatus)}'`,
+          };
+      if (!validStatuses.has(reportedStatus)) {
+        invalidStatusEntries.add(`${item.constraintId}=${String(reportedStatus)}`);
+      }
       if (firstById.has(item.constraintId)) {
         duplicateIds.add(item.constraintId);
       } else {
-        firstById.set(item.constraintId, item);
+        firstById.set(item.constraintId, normalizedItem);
       }
       if (!knownIds.has(item.constraintId)) {
         unknownIds.add(item.constraintId);
@@ -91,12 +109,16 @@ export class ValidationPipeline {
       left < right ? -1 : left > right ? 1 : 0;
     const sortedDuplicates = [...duplicateIds].sort(compareIds);
     const sortedUnknown = [...unknownIds].sort(compareIds);
+    const sortedInvalidStatuses = [...invalidStatusEntries].sort(compareIds);
     const integrityMessages = [
       ...(sortedDuplicates.length > 0
         ? [`Duplicate constraint compliance IDs: ${sortedDuplicates.join(", ")}`]
         : []),
       ...(sortedUnknown.length > 0
         ? [`Unknown constraint compliance IDs: ${sortedUnknown.join(", ")}`]
+        : []),
+      ...(sortedInvalidStatuses.length > 0
+        ? [`Invalid constraint compliance statuses: ${sortedInvalidStatuses.join(", ")}`]
         : []),
     ];
 

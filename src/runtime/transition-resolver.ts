@@ -15,8 +15,10 @@ export interface TransitionResolutionContext {
 
 export class TransitionResolver {
   resolve(context: TransitionResolutionContext): TransitionTrace {
-    const matching = context.step.allowedTransitions.find((transition) =>
-      this.#matches(transition, context),
+    const matching = context.step.allowedTransitions.find(
+      (transition) =>
+        (transition.action !== "complete" || context.validation.status === "passed") &&
+        this.#matches(transition, context),
     );
 
     if (!matching) {

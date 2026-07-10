@@ -100,11 +100,10 @@ export class BehavioralRuntime {
       explicitConstraints,
       input.phaseId,
     );
-    const persistentConstraintIds = [
-      ...new Set(
-        [...userConstraints, ...explicitConstraints].map((constraint) => constraint.id),
-      ),
-    ];
+    const persistentConstraintIds = this.#constraints.resolveRegisteredIds(
+      constraintRegistry,
+      [...userConstraints, ...explicitConstraints],
+    );
 
     const state: RuntimeRunState = {
       runId: input.runId,
@@ -132,7 +131,49 @@ export class BehavioralRuntime {
     if (!state) {
       throw new RunNotFoundError(runId);
     }
-    return state;
+    if (state.constraintRegistry && Array.isArray(state.persistentConstraintIds)) {
+      return state;
+    }
+
+    const protocol = this.#registry.resolveEffectiveProtocol(
+      state.categoryId,
+      state.modifierIds,
+      [],
+    );
+    const modifierConstraints = protocol.modifiers.flatMap(
+      (modifier) => modifier.constraints ?? [],
+    );
+    const userConstraints = state.userConstraints ?? [];
+    let constraintRegistry = this.#constraints.empty();
+    constraintRegistry = this.#constraints.register(
+      constraintRegistry,
+      modifierConstraints,
+      state.phaseId,
+    );
+    constraintRegistry = this.#constraints.register(
+      constraintRegistry,
+      userConstraints,
+      state.phaseId,
+    );
+    const persistentConstraintIds = this.#constraints.resolveRegisteredIds(
+      constraintRegistry,
+      userConstraints,
+    );
+    constraintRegistry = this.#constraints.activate(constraintRegistry, [
+      ...persistentConstraintIds,
+      ...this.#constraints.resolveRegisteredIds(
+        constraintRegistry,
+        modifierConstraints,
+      ),
+    ]);
+    const hydrated: RuntimeRunState = {
+      ...state,
+      userConstraints,
+      constraintRegistry,
+      persistentConstraintIds,
+    };
+    await this.#store.save(hydrated);
+    return hydrated;
   }
 
   async transitionPhase(
@@ -159,12 +200,6 @@ export class BehavioralRuntime {
       ...(input.userConstraints ?? []),
       ...explicitConstraints,
     ];
-    const persistentConstraintIds = [
-      ...new Set([
-        ...state.persistentConstraintIds,
-        ...addedPersistentConstraints.map((constraint) => constraint.id),
-      ]),
-    ];
     const modifierConstraints = protocol.modifiers.flatMap(
       (modifier) => modifier.constraints ?? [],
     );
@@ -186,9 +221,22 @@ export class BehavioralRuntime {
       explicitConstraints,
       input.phaseId,
     );
+    const persistentConstraintIds = [
+      ...new Set([
+        ...state.persistentConstraintIds,
+        ...this.#constraints.resolveRegisteredIds(
+          constraintRegistry,
+          addedPersistentConstraints,
+        ),
+      ]),
+    ];
+    const modifierConstraintIds = this.#constraints.resolveRegisteredIds(
+      constraintRegistry,
+      modifierConstraints,
+    );
     constraintRegistry = this.#constraints.activate(constraintRegistry, [
       ...persistentConstraintIds,
-      ...modifierConstraints.map((constraint) => constraint.id),
+      ...modifierConstraintIds,
     ]);
 
     const { blockedReason: _blockedReason, ...preserved } = state;

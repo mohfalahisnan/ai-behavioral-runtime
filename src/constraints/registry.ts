@@ -22,6 +22,7 @@ export class ConstraintRegistry {
     return Object.freeze({
       constraints: Object.freeze([]),
       registeredConstraints: Object.freeze([]),
+      constraintIdAliases: Object.freeze({}),
       history: Object.freeze([]),
     });
   }
@@ -34,19 +35,40 @@ export class ConstraintRegistry {
     const constraints = [...snapshot.constraints];
     const registeredConstraints = [...snapshot.registeredConstraints];
     const history = [...snapshot.history];
+    const constraintIdAliases: Record<string, string> = {
+      ...snapshot.constraintIdAliases,
+    };
+    for (const constraint of registeredConstraints) {
+      constraintIdAliases[constraint.id] ??= constraint.id;
+    }
     const byId = new Map(
       registeredConstraints.map((constraint) => [constraint.id, constraint]),
+    );
+    const byCanonical = new Map(
+      registeredConstraints.map((constraint) => [
+        canonicalConstraintValue(constraint),
+        constraint,
+      ]),
     );
     const activeIds = new Set(constraints.map((constraint) => constraint.id));
 
     for (const candidate of incoming) {
-      const existing = byId.get(candidate.id);
+      const canonicalValue = canonicalConstraintValue(candidate);
+      const sameId = byId.get(constraintIdAliases[candidate.id] ?? candidate.id);
+      if (sameId && canonicalConstraintValue(sameId) !== canonicalValue) {
+        throw new ConstraintCollisionError(candidate.id);
+      }
+      const existing = sameId ?? byCanonical.get(canonicalValue);
       if (existing) {
-        if (canonicalConstraintValue(existing) !== canonicalConstraintValue(candidate)) {
-          throw new ConstraintCollisionError(candidate.id);
-        }
+        constraintIdAliases[candidate.id] = existing.id;
         history.push(
-          this.#historyEntry(history.length + 1, candidate, phaseId, "reaffirmed"),
+          this.#historyEntry(
+            history.length + 1,
+            candidate,
+            phaseId,
+            "reaffirmed",
+            existing.id,
+          ),
         );
         if (!activeIds.has(existing.id)) {
           constraints.push(existing);
@@ -59,6 +81,8 @@ export class ConstraintRegistry {
       constraints.push(registered);
       registeredConstraints.push(registered);
       byId.set(registered.id, registered);
+      byCanonical.set(canonicalValue, registered);
+      constraintIdAliases[registered.id] = registered.id;
       activeIds.add(registered.id);
       history.push(
         this.#historyEntry(history.length + 1, candidate, phaseId, "registered"),
@@ -68,6 +92,7 @@ export class ConstraintRegistry {
     return Object.freeze({
       constraints: Object.freeze(constraints),
       registeredConstraints: Object.freeze(registeredConstraints),
+      constraintIdAliases: Object.freeze(constraintIdAliases),
       history: Object.freeze(history),
     });
   }
@@ -76,7 +101,12 @@ export class ConstraintRegistry {
     snapshot: ConstraintRegistrySnapshot,
     constraintIds: readonly string[],
   ): ConstraintRegistrySnapshot {
-    const requested = new Set(constraintIds);
+    const aliases = snapshot.constraintIdAliases ?? Object.fromEntries(
+      snapshot.registeredConstraints.map((constraint) => [constraint.id, constraint.id]),
+    );
+    const requested = new Set(
+      constraintIds.map((constraintId) => aliases[constraintId] ?? constraintId),
+    );
     const knownIds = new Set(
       snapshot.registeredConstraints.map((constraint) => constraint.id),
     );
@@ -90,8 +120,30 @@ export class ConstraintRegistry {
         snapshot.registeredConstraints.filter((constraint) => requested.has(constraint.id)),
       ),
       registeredConstraints: snapshot.registeredConstraints,
+      constraintIdAliases: Object.freeze({ ...aliases }),
       history: snapshot.history,
     });
+  }
+
+  resolveRegisteredIds(
+    snapshot: ConstraintRegistrySnapshot,
+    constraints: readonly Constraint[],
+  ): readonly string[] {
+    const byCanonical = new Map(
+      snapshot.registeredConstraints.map((constraint) => [
+        canonicalConstraintValue(constraint),
+        constraint.id,
+      ]),
+    );
+    const resolved: string[] = [];
+    for (const constraint of constraints) {
+      const registeredId = byCanonical.get(canonicalConstraintValue(constraint));
+      if (!registeredId) {
+        throw new Error(`Constraint is not registered: ${constraint.id}`);
+      }
+      if (!resolved.includes(registeredId)) resolved.push(registeredId);
+    }
+    return Object.freeze(resolved);
   }
 
   select(
@@ -157,10 +209,11 @@ export class ConstraintRegistry {
     constraint: Constraint,
     phaseId: PhaseId,
     action: ConstraintHistoryEntry["action"],
+    constraintId = constraint.id,
   ): ConstraintHistoryEntry {
     return Object.freeze({
       sequence,
-      constraintId: constraint.id,
+      constraintId,
       phaseId,
       action,
       ...(constraint.origin

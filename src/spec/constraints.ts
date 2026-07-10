@@ -59,6 +59,8 @@ export interface ConstraintRegistrySnapshot {
   readonly constraints: readonly Constraint[];
   /** All constraints known to the run, including inactive prior-phase modifiers. */
   readonly registeredConstraints: readonly Constraint[];
+  /** Maps every observed input ID to its canonical registered constraint ID. */
+  readonly constraintIdAliases: Readonly<Record<ConstraintId, ConstraintId>>;
   readonly history: readonly ConstraintHistoryEntry[];
 }
 

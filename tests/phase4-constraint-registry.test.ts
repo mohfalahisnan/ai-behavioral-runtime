@@ -13,6 +13,8 @@ import type {
   ModelExecutionResult,
   ModelExecutor,
   ProtocolRuntimeSpecification,
+  RuntimeRunState,
+  RuntimeStateStore,
 } from "../src/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -118,6 +120,53 @@ function makeConstraint(
   };
 }
 
+const canonicalLegacyA: Constraint = {
+  ...makeConstraint("legacy-canonical-a"),
+  rule: "Preserve the same legacy semantic rule",
+};
+const canonicalLegacyB: Constraint = {
+  ...canonicalLegacyA,
+  id: "legacy-canonical-b",
+};
+let canonicalSnapshot = registry.register(
+  registry.empty(),
+  [canonicalLegacyA],
+  "phase-canonical-one",
+);
+canonicalSnapshot = registry.register(
+  canonicalSnapshot,
+  [canonicalLegacyB],
+  "phase-canonical-two",
+);
+assertEqual(
+  canonicalSnapshot.constraints.length,
+  1,
+  "same canonical constraints with different IDs must deduplicate active state",
+);
+assertEqual(
+  canonicalSnapshot.registeredConstraints.length,
+  1,
+  "same canonical constraints with different IDs must deduplicate the catalog",
+);
+assertEqual(
+  canonicalSnapshot.history.at(-1)?.action,
+  "reaffirmed",
+  "same canonical constraints with different IDs must reaffirm history",
+);
+assertEqual(
+  canonicalSnapshot.history.at(-1)?.constraintId,
+  canonicalLegacyA.id,
+  "canonical reaffirmation history must reference the registered constraint ID",
+);
+await assertRejects(
+  () => registry.register(
+    canonicalSnapshot,
+    [{ ...canonicalLegacyB, rule: "Different semantic reuse of the alias ID" }],
+    "phase-canonical-collision",
+  ),
+  "collision",
+);
+
 const selectionSnapshot = registry.register(registry.empty(), [
   makeConstraint("excluded-and-included"),
   makeConstraint("included-outside-applicability", ["other-step"]),
@@ -187,6 +236,80 @@ class ComplianceExecutor implements ModelExecutor {
     };
   }
 }
+
+const unsafeCompletionSpecification: ProtocolRuntimeSpecification = {
+  ...initialRuntimeSpecification,
+  categories: [
+    ...initialRuntimeSpecification.categories,
+    {
+      id: "unsafe_completion",
+      label: "Unsafe Completion",
+      version: "0.1.0",
+      rules: [],
+      reasoningRules: [],
+      workflow: {
+        entryStep: "unsafe-complete",
+        version: "0.1.0",
+        steps: [
+          {
+            id: "unsafe-complete",
+            kind: "action",
+            version: "0.1.0",
+            objective: "Attempt completion despite failed validation",
+            inputContract: { description: "No input required" },
+            outputContract: {
+              description: "Required result",
+              requiredFields: ["requiredResult"],
+            },
+            completionCriteria: [
+              {
+                id: "unsafe-result-reported",
+                description: "Required result was reported",
+                required: true,
+              },
+            ],
+            allowedTransitions: [
+              { action: "complete", when: { validationStatus: ["failed"] } },
+            ],
+          },
+        ],
+      },
+    },
+  ],
+};
+const unsafeCompletionRuntime = new BehavioralRuntime({
+  specification: unsafeCompletionSpecification,
+  executor: {
+    async execute(): Promise<ModelExecutionResult> {
+      return { output: {}, completedCriteria: [] };
+    },
+  },
+});
+await unsafeCompletionRuntime.startRun({
+  runId: "phase4-unsafe-completion",
+  phaseId: "phase-unsafe-completion",
+  categoryId: "unsafe_completion",
+  objective: "Never complete failed validation",
+  context: {},
+});
+const unsafeCompletionResult = await unsafeCompletionRuntime.executeCurrentStep(
+  "phase4-unsafe-completion",
+);
+assertEqual(
+  unsafeCompletionResult.validation.status,
+  "failed",
+  "malicious completion regression must fail validation",
+);
+assertEqual(
+  unsafeCompletionResult.transition.action,
+  "block",
+  "failed validation must not authorize complete",
+);
+assertEqual(
+  unsafeCompletionResult.state.status,
+  "blocked",
+  "failed validation must not create completed state",
+);
 
 const relevantInput: ExplicitConstraintInput = {
   instruction: "Always cite evidence",
@@ -349,6 +472,55 @@ const badEvidenceMessage = badEvidenceResult.validation.checks
   .join("\n");
 assert(badEvidenceMessage.includes("Duplicate"), "duplicate compliance IDs must be visible");
 assert(badEvidenceMessage.includes("Unknown"), "unknown compliance IDs must be visible");
+
+const invalidStatusRuntime = new BehavioralRuntime({
+  specification: initialRuntimeSpecification,
+  executor: {
+    async execute(input: ModelExecutionInput): Promise<ModelExecutionResult> {
+      return {
+        output: Object.fromEntries(
+          (input.contract.step.outputContract.requiredFields ?? []).map((field) => [field, field]),
+        ),
+        completedCriteria: input.contract.step.completionCriteria
+          .filter((criterion) => criterion.required)
+          .map((criterion) => criterion.id),
+        constraintCompliance: [
+          { constraintId: relevantId, status: "bogus" },
+        ],
+      } as unknown as ModelExecutionResult;
+    },
+  },
+});
+await invalidStatusRuntime.startRun({
+  runId: "phase4-invalid-compliance-status",
+  phaseId: "phase-invalid-compliance-status",
+  categoryId: "discussion",
+  objective: "Reject untrusted compliance statuses",
+  context: initialContext,
+  explicitConstraints: [relevantInput],
+});
+const invalidStatusResult = await invalidStatusRuntime.executeCurrentStep(
+  "phase4-invalid-compliance-status",
+);
+assertEqual(
+  invalidStatusResult.validation.status,
+  "failed",
+  "invalid executor compliance status must fail validation",
+);
+const invalidStatusMessage = invalidStatusResult.validation.checks
+  .find((check) => check.validatorId === "runtime.constraint_compliance_ids")
+  ?.message ?? "";
+assert(
+  invalidStatusMessage.includes(`Invalid constraint compliance statuses: ${relevantId}=bogus`),
+  "invalid executor compliance status must be visible deterministically",
+);
+assertEqual(
+  invalidStatusResult.validation.constraintCompliance?.find(
+    (item) => item.constraintId === relevantId,
+  )?.status,
+  "inconclusive",
+  "invalid executor compliance status must normalize to a public status",
+);
 
 const transitionRuntime = new BehavioralRuntime({
   specification: initialRuntimeSpecification,
@@ -515,6 +687,164 @@ assert(
     (constraint) => constraint.id === temporaryModifierConstraint.id,
   ),
   "removed modifier constraint must not be selected",
+);
+
+const canonicalRuntime = new BehavioralRuntime({
+  specification: initialRuntimeSpecification,
+  executor: new ComplianceExecutor((input) =>
+    input.contract.constraints.map((constraint) => ({
+      constraintId: constraint.id,
+      status: "satisfied",
+    })),
+  ),
+});
+let canonicalRuntimeState = await canonicalRuntime.startRun({
+  runId: "phase4-canonical-persistence",
+  phaseId: "canonical-runtime-one",
+  categoryId: "discussion",
+  objective: "Persist one canonical legacy constraint",
+  userConstraints: [canonicalLegacyA, canonicalLegacyB],
+  context: initialContext,
+});
+while (canonicalRuntimeState.status === "active") {
+  canonicalRuntimeState = (
+    await canonicalRuntime.executeCurrentStep(canonicalRuntimeState.runId)
+  ).state;
+}
+const canonicalTransitioned = await canonicalRuntime.transitionPhase(
+  canonicalRuntimeState.runId,
+  {
+    phaseId: "canonical-runtime-two",
+    categoryId: "task_execution",
+    objective: "Keep the canonical legacy constraint active",
+  },
+);
+assertEqual(
+  canonicalTransitioned.constraintRegistry.constraints.length,
+  1,
+  "canonical legacy constraint must remain singly active after transition",
+);
+assertEqual(
+  canonicalTransitioned.constraintRegistry.registeredConstraints.length,
+  1,
+  "canonical legacy constraint catalog must remain deduplicated",
+);
+assertEqual(
+  canonicalTransitioned.persistentConstraintIds.length,
+  1,
+  "persistent constraint IDs must resolve to the canonical registered ID",
+);
+assertEqual(
+  canonicalTransitioned.persistentConstraintIds[0],
+  canonicalLegacyA.id,
+  "persistent constraint ID must use the first registered canonical ID",
+);
+
+class SeededStateStore implements RuntimeStateStore {
+  readonly #states = new Map<string, RuntimeRunState>();
+
+  constructor(states: readonly RuntimeRunState[]) {
+    for (const state of states) this.#states.set(state.runId, state);
+  }
+
+  async get(runId: string): Promise<RuntimeRunState | undefined> {
+    return this.#states.get(runId);
+  }
+
+  async save(state: RuntimeRunState): Promise<void> {
+    this.#states.set(state.runId, state);
+  }
+
+  async has(runId: string): Promise<boolean> {
+    return this.#states.has(runId);
+  }
+}
+
+const legacyActiveState = {
+  runId: "phase4-legacy-active-state",
+  phaseId: "legacy-active-phase",
+  categoryId: "discussion",
+  objective: "Hydrate active legacy state",
+  modifierIds: ["temporary-modifier"],
+  userConstraints: [canonicalLegacyA],
+  currentStepId: "understand-position",
+  status: "active",
+  context: initialContext,
+  attemptsByStep: {},
+  retriesByStep: {},
+  traces: [],
+} as unknown as RuntimeRunState;
+const legacyCompletedState = {
+  ...legacyActiveState,
+  runId: "phase4-legacy-completed-state",
+  phaseId: "legacy-completed-phase",
+  objective: "Hydrate completed legacy state",
+  currentStepId: "respond",
+  status: "completed",
+} as unknown as RuntimeRunState;
+const legacyStateStore = new SeededStateStore([
+  legacyActiveState,
+  legacyCompletedState,
+]);
+const legacyRuntime = new BehavioralRuntime({
+  specification: modifierSpecification,
+  stateStore: legacyStateStore,
+  executor: new ComplianceExecutor((input) =>
+    input.contract.constraints.map((constraint) => ({
+      constraintId: constraint.id,
+      status: "satisfied",
+    })),
+  ),
+});
+const hydratedLegacyContract = await legacyRuntime.compileCurrentStep(
+  legacyActiveState.runId,
+);
+assert(
+  hydratedLegacyContract.constraints.some(
+    (constraint) => constraint.id === canonicalLegacyA.id,
+  ),
+  "hydrated legacy active state must retain user constraints",
+);
+assert(
+  hydratedLegacyContract.constraints.some(
+    (constraint) => constraint.id === temporaryModifierConstraint.id,
+  ),
+  "hydrated legacy active state must restore modifier constraints",
+);
+const hydratedLegacyStep = await legacyRuntime.executeCurrentStep(
+  legacyActiveState.runId,
+);
+assertEqual(
+  hydratedLegacyStep.validation.status,
+  "passed",
+  "hydrated legacy active state must validate normally",
+);
+const savedHydratedState = await legacyStateStore.get(legacyActiveState.runId);
+assert(savedHydratedState?.constraintRegistry, "hydrated state must be saved with a registry");
+assert(
+  savedHydratedState?.persistentConstraintIds.includes(canonicalLegacyA.id),
+  "hydrated state must save persistent user constraint IDs",
+);
+const transitionedLegacyState = await legacyRuntime.transitionPhase(
+  legacyCompletedState.runId,
+  {
+    phaseId: "legacy-transitioned-phase",
+    categoryId: "task_execution",
+    objective: "Transition hydrated legacy state",
+    modifierIds: [],
+  },
+);
+assert(
+  transitionedLegacyState.constraintRegistry.constraints.some(
+    (constraint) => constraint.id === canonicalLegacyA.id,
+  ),
+  "hydrated completed state must retain user constraints across transition",
+);
+assert(
+  !transitionedLegacyState.constraintRegistry.constraints.some(
+    (constraint) => constraint.id === temporaryModifierConstraint.id,
+  ),
+  "hydrated completed state must deactivate removed modifiers",
 );
 
 const blockedRuntime = new BehavioralRuntime({
