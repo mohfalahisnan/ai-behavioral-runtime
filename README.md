@@ -20,7 +20,7 @@ Core rule:
 
 ## Current status
 
-**Phase 3 — Initial Categories** is implemented.
+**Phase 4 — Constraint Registry** is implemented.
 
 The repository currently contains:
 
@@ -30,6 +30,10 @@ The repository currently contains:
 - minimal effective step-contract compilation,
 - resolved reasoning strategy definitions,
 - relevant constraint selection,
+- deterministic explicit constraint extraction with stable semantic IDs,
+- immutable constraint snapshots with registration and reaffirmation history,
+- ignored-constraint reasons and complete per-step compliance accounting,
+- explicit completed-phase transitions that preserve registry history and traces,
 - generic single-model execution boundary,
 - deterministic input and output checks,
 - validation-driven continue, retry, block, and complete transitions,
@@ -46,6 +50,7 @@ The repository currently contains:
 - [Phase 1 specification](docs/specification/README.md)
 - [Phase 2 minimal runtime](docs/runtime/README.md)
 - [Phase 3 initial category protocols](docs/protocols/README.md)
+- [Phase 4 constraint registry](docs/constraints/README.md)
 - [Protocol vocabulary](docs/specification/vocabulary.md)
 - [Core invariants](docs/specification/invariants.md)
 

@@ -9,7 +9,7 @@ Last updated: 2026-07-10
 | Phase 1 — Specification | ✅ Completed | Core vocabulary, interfaces, protocol definitions, workflow model, reasoning strategy model, validation, transitions, traces, and model execution boundary defined. |
 | Phase 2 — Minimal Runtime | ✅ Completed | Minimal behavioral runtime implemented with protocol loading, workflow execution, step contract compilation, model execution, validation, tracing, and runtime-controlled transitions. |
 | Phase 3 — Initial Categories | ✅ Completed | Added and validated `discussion`, `task_execution`, and `coding_task` on the same declarative runtime. |
-| Phase 4 | ⏳ Next | Continue with the next planned runtime capability phase. |
+| Phase 4 — Constraint Registry | ✅ Completed | Added deterministic explicit extraction, immutable registry history, step relevance metadata, complete compliance reporting, and caller-authorized phase transitions. |
 
 ## Phase 1 — Specification
 
@@ -99,4 +99,24 @@ Validation evidence:
 
 ## Phase 4
 
-**Status:** ⏳ Next
+**Status:** ✅ Completed
+
+Implemented capabilities:
+
+- deterministic structured extraction with whitespace normalization and stable semantic IDs
+- original instruction traceability and collision rejection
+- immutable registry snapshots with registration and reaffirmation history
+- selector precedence with explicit ignored reasons
+- relevant and ignored constraints in compiled step contracts
+- complete compliance records for every visible registry constraint
+- deterministic rejection of unknown and duplicate executor compliance IDs
+- explicit phase transitions only after completion, preserving context, traces, constraints, and history
+- reset step and retry counters at the next category entry step
+
+Validation evidence:
+
+- `npm run test:phase4` — passed
+- `npm test` — Phase 3 and Phase 4 passed
+- `npm run typecheck` — passed
+- `npm run smoke` — passed
+- `git diff --check` — passed
