@@ -136,7 +136,7 @@ export const codingTaskCategory: CategoryProtocol = {
         ],
         allowedTransitions: [
           { action: "continue", to: "implement", when: { validationStatus: ["passed"], completionCriteria: ["security-approved"] } },
-          { action: "block", when: { validationStatus: ["failed"], description: "Security approval is required before implementation." } },
+          { action: "block", when: { description: "Security approval is absent or denied; implementation is blocked." } },
         ],
       },
       {

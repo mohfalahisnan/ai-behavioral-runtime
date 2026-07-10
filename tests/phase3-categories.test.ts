@@ -261,6 +261,41 @@ if (deniedSecurityState.status !== "blocked") {
     !deniedSecurityState.traces.some((trace) => trace.stepId === "implement"),
     "denied security approval must never reach implement",
   );
+  const deniedSecurityTrace = deniedSecurityState.traces.at(-1);
+  assert(deniedSecurityTrace, "denied security approval must emit a trace");
+  assertEqual(
+    deniedSecurityTrace.transition?.action,
+    "block",
+    "denied security approval must take the declarative block transition",
+  );
+  assertEqual(
+    deniedSecurityTrace.transition?.reason,
+    "Security approval is absent or denied; implementation is blocked.",
+    "denied security approval must use the declared security block reason",
+  );
+
+  const codingCategory = initialRuntimeSpecification.categories.find(
+    (category) => category.id === "coding_task",
+  );
+  const securityStep = codingCategory?.workflow.steps.find(
+    (step) => step.id === "security-check",
+  );
+  assert(securityStep, "coding_task must define security-check");
+  assertEqual(
+    securityStep.allowedTransitions[0]?.action,
+    "continue",
+    "security-check guarded continue must be first",
+  );
+  assertEqual(
+    securityStep.allowedTransitions[1]?.action,
+    "block",
+    "security-check unconditional block must follow guarded continue",
+  );
+  assertEqual(
+    securityStep.allowedTransitions[1]?.when?.validationStatus,
+    undefined,
+    "security-check block must be unconditional",
+  );
 }
 
 assertEqual(
