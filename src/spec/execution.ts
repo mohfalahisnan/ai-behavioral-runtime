@@ -1,4 +1,8 @@
-import type { Constraint, ConstraintCompliance } from "./constraints.js";
+import type {
+  Constraint,
+  ConstraintCompliance,
+  IgnoredConstraintSelection,
+} from "./constraints.js";
 import type {
   CategoryId,
   JsonObject,
@@ -21,6 +25,7 @@ export interface EffectiveStepContract {
   readonly step: WorkflowStep;
   readonly reasoning: ReasoningProtocol;
   readonly constraints: readonly Constraint[];
+  readonly ignoredConstraints: readonly IgnoredConstraintSelection[];
 }
 
 export interface ModelExecutionInput {

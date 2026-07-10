@@ -14,6 +14,11 @@ export type ConstraintSource =
   | "modifier"
   | "runtime";
 
+export interface ConstraintOrigin {
+  readonly originalInstruction: string;
+  readonly normalizedInstruction: string;
+}
+
 export interface Constraint {
   readonly id: ConstraintId;
   readonly kind: ConstraintKind;
@@ -22,10 +27,50 @@ export interface Constraint {
   readonly priority: number;
   readonly overridable: boolean;
   readonly appliesTo?: readonly StepId[];
+  readonly origin?: ConstraintOrigin;
 }
 
-export interface ConstraintRegistry {
+export interface ExtractedConstraint extends Constraint {
+  readonly origin: ConstraintOrigin;
+}
+
+/** Structured caller input. The runtime does not infer kind or intent. */
+export interface ExplicitConstraintInput {
+  readonly instruction: string;
+  readonly kind: ConstraintKind;
+  readonly source: ConstraintSource;
+  readonly priority?: number;
+  readonly overridable?: boolean;
+  readonly appliesTo?: readonly StepId[];
+}
+
+export type ConstraintHistoryAction = "registered" | "reaffirmed";
+
+export interface ConstraintHistoryEntry {
+  readonly sequence: number;
+  readonly constraintId: ConstraintId;
+  readonly action: ConstraintHistoryAction;
+  readonly origin?: ConstraintOrigin;
+}
+
+export interface ConstraintRegistrySnapshot {
   readonly constraints: readonly Constraint[];
+  readonly history: readonly ConstraintHistoryEntry[];
+}
+
+export type IgnoredConstraintReason =
+  | "explicitly_excluded"
+  | "not_applicable_to_step"
+  | "include_all_applicable_disabled";
+
+export interface IgnoredConstraintSelection {
+  readonly constraintId: ConstraintId;
+  readonly reason: IgnoredConstraintReason;
+}
+
+export interface ConstraintSelection {
+  readonly relevant: readonly Constraint[];
+  readonly ignored: readonly IgnoredConstraintSelection[];
 }
 
 export type ConstraintComplianceStatus =

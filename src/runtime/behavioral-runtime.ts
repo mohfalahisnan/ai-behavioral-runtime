@@ -10,6 +10,7 @@ import type {
   ValidationResult,
   WorkflowStep,
 } from "../spec/index.js";
+import { ConstraintExtractor, ConstraintRegistry } from "../constraints/index.js";
 import { InvalidRunStateError, RunNotFoundError } from "./errors.js";
 import { ProtocolRegistry } from "./protocol-registry.js";
 import {
@@ -22,6 +23,7 @@ import type {
   RuntimeClock,
   RuntimeRunState,
   RuntimeStepResult,
+  PhaseTransitionInput,
   StartRunInput,
 } from "./types.js";
 import {
@@ -47,6 +49,8 @@ export class BehavioralRuntime {
   readonly #executor: ModelExecutor;
   readonly #store: RuntimeStateStore;
   readonly #registry: ProtocolRegistry;
+  readonly #constraints = new ConstraintRegistry();
+  readonly #extractor = new ConstraintExtractor();
   readonly #compiler: StepCompiler;
   readonly #validation: ValidationPipeline;
   readonly #transitions = new TransitionResolver();
@@ -56,7 +60,7 @@ export class BehavioralRuntime {
     this.#executor = options.executor;
     this.#store = options.stateStore ?? new InMemoryRuntimeStateStore();
     this.#registry = new ProtocolRegistry(options.specification);
-    this.#compiler = new StepCompiler(this.#registry);
+    this.#compiler = new StepCompiler(this.#registry, this.#constraints);
     this.#clock = options.clock ?? systemClock;
     this.#validation = new ValidationPipeline([
       new SchemaValidatorHandler(),
@@ -71,11 +75,27 @@ export class BehavioralRuntime {
     }
 
     const modifierIds = input.modifierIds ?? [];
+    const explicitConstraints = (input.explicitConstraints ?? []).map((constraint) =>
+      this.#extractor.extract(constraint),
+    );
     const userConstraints = input.userConstraints ?? [];
     const protocol = this.#registry.resolveEffectiveProtocol(
       input.categoryId,
       modifierIds,
-      userConstraints,
+      [],
+    );
+    let constraintRegistry = this.#constraints.empty();
+    constraintRegistry = this.#constraints.register(
+      constraintRegistry,
+      protocol.modifiers.flatMap((modifier) => modifier.constraints ?? []),
+    );
+    constraintRegistry = this.#constraints.register(
+      constraintRegistry,
+      input.userConstraints ?? [],
+    );
+    constraintRegistry = this.#constraints.register(
+      constraintRegistry,
+      explicitConstraints,
     );
 
     const state: RuntimeRunState = {
@@ -85,6 +105,7 @@ export class BehavioralRuntime {
       objective: input.objective,
       modifierIds,
       userConstraints,
+      constraintRegistry,
       currentStepId: protocol.category.workflow.entryStep,
       status: "active",
       context: input.context,
@@ -105,10 +126,64 @@ export class BehavioralRuntime {
     return state;
   }
 
+  async transitionPhase(
+    runId: RunId,
+    input: PhaseTransitionInput,
+  ): Promise<RuntimeRunState> {
+    const state = await this.getState(runId);
+    if (state.status !== "completed") {
+      throw new InvalidRunStateError(
+        `Cannot transition run '${runId}' until the prior phase is completed`,
+      );
+    }
+
+    const modifierIds = input.modifierIds ?? state.modifierIds;
+    const protocol = this.#registry.resolveEffectiveProtocol(
+      input.categoryId,
+      modifierIds,
+      [],
+    );
+    const explicitConstraints = (input.explicitConstraints ?? []).map((constraint) =>
+      this.#extractor.extract(constraint),
+    );
+    let constraintRegistry = state.constraintRegistry;
+    if (input.modifierIds !== undefined) {
+      constraintRegistry = this.#constraints.register(
+        constraintRegistry,
+        protocol.modifiers.flatMap((modifier) => modifier.constraints ?? []),
+      );
+    }
+    constraintRegistry = this.#constraints.register(
+      constraintRegistry,
+      input.userConstraints ?? [],
+    );
+    constraintRegistry = this.#constraints.register(
+      constraintRegistry,
+      explicitConstraints,
+    );
+
+    const { blockedReason: _blockedReason, ...preserved } = state;
+    const transitioned: RuntimeRunState = {
+      ...preserved,
+      phaseId: input.phaseId,
+      categoryId: input.categoryId,
+      objective: input.objective,
+      modifierIds,
+      userConstraints: [...state.userConstraints, ...(input.userConstraints ?? [])],
+      constraintRegistry,
+      currentStepId: protocol.category.workflow.entryStep,
+      status: "active",
+      attemptsByStep: {},
+      retriesByStep: {},
+    };
+    await this.#store.save(transitioned);
+    return transitioned;
+  }
+
   async compileCurrentStep(runId: RunId): Promise<EffectiveStepContract> {
     const state = await this.getState(runId);
     const { protocol, step } = this.#resolveCurrent(state);
-    return this.#compiler.compile(protocol, step);
+    return this.#compiler.compile(protocol, step, state.constraintRegistry);
   }
 
   async executeCurrentStep(runId: RunId): Promise<RuntimeStepResult> {
@@ -120,8 +195,8 @@ export class BehavioralRuntime {
     }
 
     const { protocol, step } = this.#resolveCurrent(state);
-    const contract = this.#compiler.compile(protocol, step);
-    const inputValidation = this.#validateInput(step, state);
+    const contract = this.#compiler.compile(protocol, step, state.constraintRegistry);
+    const inputValidation = this.#validateInput(step, state, contract);
 
     if (inputValidation.status !== "passed") {
       const transition: TransitionTrace = {
@@ -162,6 +237,7 @@ export class BehavioralRuntime {
     const validation = await this.#validation.validate({
       step,
       constraints: contract.constraints,
+      ignoredConstraints: contract.ignoredConstraints,
       execution,
     });
 
@@ -204,7 +280,7 @@ export class BehavioralRuntime {
     const protocol = this.#registry.resolveEffectiveProtocol(
       state.categoryId,
       state.modifierIds,
-      state.userConstraints,
+      [],
     );
     const step = this.#registry.getWorkflowStep(
       state.categoryId,
@@ -216,11 +292,25 @@ export class BehavioralRuntime {
   #validateInput(
     step: WorkflowStep,
     state: RuntimeRunState,
+    contract: EffectiveStepContract,
   ): ValidationResult {
     const required = step.inputContract.requiredFields ?? [];
     const missing = required.filter(
       (field) => !Object.prototype.hasOwnProperty.call(state.context, field),
     );
+
+    const constraintCompliance = [
+      ...contract.constraints.map((constraint) => ({
+        constraintId: constraint.id,
+        status: "inconclusive" as const,
+        explanation: "Step did not execute, so compliance is unavailable",
+      })),
+      ...contract.ignoredConstraints.map((selection) => ({
+        constraintId: selection.constraintId,
+        status: "not_applicable" as const,
+        explanation: selection.reason,
+      })),
+    ];
 
     return missing.length === 0
       ? {
@@ -232,6 +322,7 @@ export class BehavioralRuntime {
               message: "Required input fields are present",
             },
           ],
+          constraintCompliance,
         }
       : {
           status: "failed",
@@ -242,6 +333,7 @@ export class BehavioralRuntime {
               message: `Missing required input fields: ${missing.join(", ")}`,
             },
           ],
+          constraintCompliance,
         };
   }
 

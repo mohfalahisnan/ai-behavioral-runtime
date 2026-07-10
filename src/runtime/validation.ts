@@ -1,5 +1,7 @@
 import type {
   Constraint,
+  ConstraintCompliance,
+  IgnoredConstraintSelection,
   ModelExecutionResult,
   ValidationCheckResult,
   ValidationResult,
@@ -12,12 +14,18 @@ import type {
 export interface ValidationContext {
   readonly step: WorkflowStep;
   readonly constraints: readonly Constraint[];
+  readonly ignoredConstraints: readonly IgnoredConstraintSelection[];
   readonly execution: ModelExecutionResult;
 }
 
 export interface ValidatorHandler {
   readonly kind: ValidatorKind;
   validate(rule: ValidationRule, context: ValidationContext): Promise<ValidationCheckResult>;
+}
+
+interface ComplianceAnalysis {
+  readonly checks: readonly ValidationCheckResult[];
+  readonly compliance: readonly ConstraintCompliance[];
 }
 
 export class ValidationPipeline {
@@ -30,9 +38,11 @@ export class ValidationPipeline {
   }
 
   async validate(context: ValidationContext): Promise<ValidationResult> {
+    const compliance = this.#analyzeCompliance(context);
     const checks: ValidationCheckResult[] = [
       this.#validateRequiredOutputFields(context),
       this.#validateCompletionCriteria(context),
+      ...compliance.checks,
     ];
 
     for (const rule of context.step.validationContract?.rules ?? []) {
@@ -49,17 +59,109 @@ export class ValidationPipeline {
       checks.push(await handler.validate(rule, context));
     }
 
-    const constraintCompliance = context.execution.constraintCompliance;
-    return constraintCompliance
+    return {
+      status: this.#aggregateStatus(checks),
+      checks,
+      constraintCompliance: compliance.compliance,
+    };
+  }
+
+  #analyzeCompliance(context: ValidationContext): ComplianceAnalysis {
+    const reported = context.execution.constraintCompliance ?? [];
+    const knownIds = new Set([
+      ...context.constraints.map((constraint) => constraint.id),
+      ...context.ignoredConstraints.map((selection) => selection.constraintId),
+    ]);
+    const firstById = new Map<string, ConstraintCompliance>();
+    const duplicateIds = new Set<string>();
+    const unknownIds = new Set<string>();
+
+    for (const item of reported) {
+      if (firstById.has(item.constraintId)) {
+        duplicateIds.add(item.constraintId);
+      } else {
+        firstById.set(item.constraintId, item);
+      }
+      if (!knownIds.has(item.constraintId)) {
+        unknownIds.add(item.constraintId);
+      }
+    }
+
+    const compareIds = (left: string, right: string): number =>
+      left < right ? -1 : left > right ? 1 : 0;
+    const sortedDuplicates = [...duplicateIds].sort(compareIds);
+    const sortedUnknown = [...unknownIds].sort(compareIds);
+    const integrityMessages = [
+      ...(sortedDuplicates.length > 0
+        ? [`Duplicate constraint compliance IDs: ${sortedDuplicates.join(", ")}`]
+        : []),
+      ...(sortedUnknown.length > 0
+        ? [`Unknown constraint compliance IDs: ${sortedUnknown.join(", ")}`]
+        : []),
+    ];
+
+    const relevantCompliance = context.constraints.map((constraint) => {
+      const item = firstById.get(constraint.id);
+      return item ?? {
+        constraintId: constraint.id,
+        status: "inconclusive" as const,
+        explanation: "Executor did not report compliance for this relevant constraint",
+      };
+    });
+    const ignoredCompliance: ConstraintCompliance[] = context.ignoredConstraints.map(
+      (selection) => ({
+        constraintId: selection.constraintId,
+        status: "not_applicable",
+        explanation: selection.reason,
+      }),
+    );
+    const hardConstraintIds = new Set(
+      context.constraints
+        .filter((constraint) => constraint.kind !== "preference")
+        .map((constraint) => constraint.id),
+    );
+    const violatedHard = relevantCompliance
+      .filter(
+        (item) => hardConstraintIds.has(item.constraintId) && item.status === "violated",
+      )
+      .map((item) => item.constraintId);
+    const inconclusive = relevantCompliance
+      .filter((item) => item.status === "inconclusive" || item.status === "not_applicable")
+      .map((item) => item.constraintId);
+
+    const integrityCheck: ValidationCheckResult = integrityMessages.length === 0
       ? {
-          status: this.#aggregateStatus(checks),
-          checks,
-          constraintCompliance,
+          validatorId: "runtime.constraint_compliance_ids",
+          status: "passed",
+          message: "Constraint compliance IDs are unique and known",
         }
       : {
-          status: this.#aggregateStatus(checks),
-          checks,
+          validatorId: "runtime.constraint_compliance_ids",
+          status: "failed",
+          message: integrityMessages.join("; "),
         };
+    const complianceCheck: ValidationCheckResult = violatedHard.length > 0
+      ? {
+          validatorId: "runtime.constraint_compliance",
+          status: "failed",
+          message: `Violated hard constraints: ${violatedHard.join(", ")}`,
+        }
+      : inconclusive.length > 0
+        ? {
+            validatorId: "runtime.constraint_compliance",
+            status: "inconclusive",
+            message: `Inconclusive relevant constraints: ${inconclusive.join(", ")}`,
+          }
+        : {
+            validatorId: "runtime.constraint_compliance",
+            status: "passed",
+            message: "Relevant constraints have conclusive compliance records",
+          };
+
+    return {
+      checks: [integrityCheck, complianceCheck],
+      compliance: [...relevantCompliance, ...ignoredCompliance],
+    };
   }
 
   #validateRequiredOutputFields(context: ValidationContext): ValidationCheckResult {
@@ -102,15 +204,11 @@ export class ValidationPipeline {
   }
 
   #aggregateStatus(checks: readonly ValidationCheckResult[]): ValidationStatus {
-    if (checks.some((check) => check.status === "failed")) {
-      return "failed";
-    }
+    if (checks.some((check) => check.status === "failed")) return "failed";
     if (checks.some((check) => check.status === "requires_human_review")) {
       return "requires_human_review";
     }
-    if (checks.some((check) => check.status === "inconclusive")) {
-      return "inconclusive";
-    }
+    if (checks.some((check) => check.status === "inconclusive")) return "inconclusive";
     return "passed";
   }
 }
@@ -159,7 +257,6 @@ export class ConstraintValidatorHandler implements ValidatorHandler {
     const compliance = new Map(
       (context.execution.constraintCompliance ?? []).map((result) => [result.constraintId, result]),
     );
-
     const hardConstraints = context.constraints.filter(
       (constraint) => constraint.kind !== "preference",
     );
@@ -183,21 +280,20 @@ export class ConstraintValidatorHandler implements ValidatorHandler {
       };
     }
 
-    const inconclusive = hardConstraints.filter(
-      (constraint) => compliance.get(constraint.id)?.status === "inconclusive",
-    );
-    if (inconclusive.length > 0) {
-      return {
-        validatorId: rule.id,
-        status: "inconclusive",
-        message: `Inconclusive constraints: ${inconclusive.map((item) => item.id).join(", ")}`,
-      };
-    }
-
-    return {
-      validatorId: rule.id,
-      status: "passed",
-      message: "Relevant hard constraints are satisfied",
-    };
+    const inconclusive = hardConstraints.filter((constraint) => {
+      const status = compliance.get(constraint.id)?.status;
+      return status === "inconclusive" || status === "not_applicable";
+    });
+    return inconclusive.length > 0
+      ? {
+          validatorId: rule.id,
+          status: "inconclusive",
+          message: `Inconclusive constraints: ${inconclusive.map((item) => item.id).join(", ")}`,
+        }
+      : {
+          validatorId: rule.id,
+          status: "passed",
+          message: "Relevant hard constraints are satisfied",
+        };
   }
 }

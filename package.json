@@ -5,8 +5,9 @@
   "description": "Model-agnostic specification and runtime for predictable AI behavior.",
   "type": "module",
   "scripts": {
-    "test": "npm run test:phase3",
+    "test": "npm run test:phase3 && npm run test:phase4",
     "test:phase3": "npm run typecheck && npm run build && node dist/tests/phase3-categories.test.js",
+    "test:phase4": "npm run typecheck && npm run build && node dist/tests/phase4-constraint-registry.test.js",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
     "smoke": "npm run build && node dist/examples/minimal-runtime.js"

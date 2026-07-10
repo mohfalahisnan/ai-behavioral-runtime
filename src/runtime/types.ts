@@ -1,7 +1,9 @@
 import type {
   CategoryId,
   Constraint,
+  ConstraintRegistrySnapshot,
   ExecutionTrace,
+  ExplicitConstraintInput,
   JsonObject,
   ModelExecutionResult,
   ModifierId,
@@ -22,6 +24,7 @@ export interface RuntimeRunState {
   readonly objective: string;
   readonly modifierIds: readonly ModifierId[];
   readonly userConstraints: readonly Constraint[];
+  readonly constraintRegistry: ConstraintRegistrySnapshot;
   readonly currentStepId: StepId;
   readonly status: RunStatus;
   readonly context: JsonObject;
@@ -38,7 +41,17 @@ export interface StartRunInput {
   readonly objective: string;
   readonly modifierIds?: readonly ModifierId[];
   readonly userConstraints?: readonly Constraint[];
+  readonly explicitConstraints?: readonly ExplicitConstraintInput[];
   readonly context: JsonObject;
+}
+
+export interface PhaseTransitionInput {
+  readonly phaseId: PhaseId;
+  readonly categoryId: CategoryId;
+  readonly objective: string;
+  readonly modifierIds?: readonly ModifierId[];
+  readonly userConstraints?: readonly Constraint[];
+  readonly explicitConstraints?: readonly ExplicitConstraintInput[];
 }
 
 export interface RuntimeStepResult {

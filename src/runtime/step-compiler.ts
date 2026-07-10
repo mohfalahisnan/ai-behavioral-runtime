@@ -1,19 +1,32 @@
 import type {
-  Constraint,
+  ConstraintRegistrySnapshot,
   EffectiveProtocol,
   EffectiveStepContract,
   ReasoningProtocol,
   WorkflowStep,
 } from "../spec/index.js";
+import { ConstraintRegistry } from "../constraints/index.js";
 import { ProtocolRegistry } from "./protocol-registry.js";
 
 export class StepCompiler {
-  constructor(private readonly registry: ProtocolRegistry) {}
+  constructor(
+    private readonly registry: ProtocolRegistry,
+    private readonly constraints = new ConstraintRegistry(),
+  ) {}
 
-  compile(protocol: EffectiveProtocol, step: WorkflowStep): EffectiveStepContract {
-    const constraints = this.#selectConstraints(
+  compile(
+    protocol: EffectiveProtocol,
+    step: WorkflowStep,
+    snapshot?: ConstraintRegistrySnapshot,
+  ): EffectiveStepContract {
+    const activeSnapshot = snapshot ?? this.constraints.register(
+      this.constraints.empty(),
       this.registry.resolveConstraints(protocol),
-      step,
+    );
+    const selection = this.constraints.select(
+      activeSnapshot,
+      step.relevantConstraints,
+      step.id,
     );
 
     const reasoning: ReasoningProtocol = {
@@ -36,33 +49,8 @@ export class StepCompiler {
       rules: this.registry.resolveRules(protocol),
       step,
       reasoning,
-      constraints,
+      constraints: selection.relevant,
+      ignoredConstraints: selection.ignored,
     };
-  }
-
-  #selectConstraints(
-    constraints: readonly Constraint[],
-    step: WorkflowStep,
-  ): readonly Constraint[] {
-    const selector = step.relevantConstraints;
-    const include = new Set(selector?.include ?? []);
-    const exclude = new Set(selector?.exclude ?? []);
-    const includeAllApplicable = selector?.includeAllApplicable ?? true;
-
-    return constraints.filter((constraint) => {
-      if (exclude.has(constraint.id)) {
-        return false;
-      }
-
-      if (include.has(constraint.id)) {
-        return true;
-      }
-
-      if (!includeAllApplicable) {
-        return false;
-      }
-
-      return !constraint.appliesTo || constraint.appliesTo.includes(step.id);
-    });
   }
 }
