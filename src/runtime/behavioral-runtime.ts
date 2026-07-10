@@ -14,6 +14,7 @@ import type {
   EnforcementLevel,
   PermissionPolicy,
   ExecutionResult,
+  JsonObject,
 } from "../spec/index.js";
 import { ConstraintExtractor, ConstraintRegistry } from "../constraints/index.js";
 import { InvalidRunStateError, RunNotFoundError, ExecutorNotConfiguredError } from "./errors.js";
@@ -24,6 +25,7 @@ import {
 } from "./state-store.js";
 import { StepCompiler } from "./step-compiler.js";
 import { TransitionResolver } from "./transition-resolver.js";
+import { TurnResolver, type ClassificationResult } from "./turn-resolver.js";
 import type {
   RuntimeClock,
   RuntimeRunState,
@@ -50,6 +52,7 @@ export interface BehavioralRuntimeOptions {
   readonly stateStore?: RuntimeStateStore;
   readonly validators?: readonly ValidatorHandler[];
   readonly clock?: RuntimeClock;
+  readonly turnResolver?: TurnResolver;
 }
 
 const systemClock: RuntimeClock = {
@@ -72,6 +75,7 @@ export class BehavioralRuntime {
   readonly #validation: ValidationPipeline;
   readonly #transitions = new TransitionResolver();
   readonly #clock: RuntimeClock;
+  readonly #turnResolver: TurnResolver;
 
   constructor(options: BehavioralRuntimeOptions) {
     this.#executor = options.executor;
@@ -86,6 +90,23 @@ export class BehavioralRuntime {
       new ConstraintValidatorHandler(),
       ...(options.validators ?? []),
     ]);
+    this.#turnResolver = options.turnResolver ?? new TurnResolver({
+      executor: this.#executor,
+      categories: [
+        { id: "discussion", keywords: ["discuss", "talk", "chat", "explain", "why", "what", "how", "question", "ask"] },
+        { id: "coding_task", keywords: ["code", "implement", "write", "fix", "refactor", "bug", "build", "develop", "test"] },
+        { id: "task_execution", keywords: ["run", "execute", "do", "perform", "start", "proceed", "make", "generate"] },
+      ],
+      modifiers: [
+        { id: "concise", keywords: ["concise", "short", "brief", "quick"] },
+        { id: "exploratory", keywords: ["explore", "research", "analyze", "study", "survey"] },
+        { id: "critical", keywords: ["critical", "urgent", "must", "important"] },
+      ],
+    });
+  }
+
+  async resolveTurn(turn: string, context?: JsonObject): Promise<ClassificationResult> {
+    return this.#turnResolver.resolve(turn, context);
   }
 
   registerValidator(handler: ValidatorHandler): void {
