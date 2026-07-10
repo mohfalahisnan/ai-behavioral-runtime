@@ -9,6 +9,7 @@ import type {
   ValidationStatus,
   ValidatorKind,
   WorkflowStep,
+  ModelExecutor,
 } from "../spec/index.js";
 
 export interface ValidationContext {
@@ -348,5 +349,167 @@ export class ConstraintValidatorHandler implements ValidatorHandler {
           status: "passed",
           message: "Relevant hard constraints are satisfied",
         };
+  }
+}
+
+export class CompletionCriteriaValidatorHandler implements ValidatorHandler {
+  readonly kind = "completion_criteria" as const;
+
+  async validate(
+    rule: ValidationRule,
+    context: ValidationContext,
+  ): Promise<ValidationCheckResult> {
+    const required = context.step.completionCriteria
+      .filter((criterion) => criterion.required)
+      .map((criterion) => criterion.id);
+    const completed = new Set(context.execution.completedCriteria ?? []);
+    const missing = required.filter((criterionId) => !completed.has(criterionId));
+
+    return missing.length === 0
+      ? {
+          validatorId: rule.id,
+          status: "passed",
+          message: "Required completion criteria were reported",
+        }
+      : {
+          validatorId: rule.id,
+          status: "failed",
+          message: `Missing completion criteria: ${missing.join(", ")}`,
+        };
+  }
+}
+
+export type DeterministicCallback = (context: ValidationContext) => Promise<ValidationCheckResult>;
+
+export class DeterministicValidatorHandler implements ValidatorHandler {
+  readonly kind = "deterministic" as const;
+  readonly #callbacks = new Map<string, DeterministicCallback>();
+
+  constructor(callbacks: Record<string, DeterministicCallback> = {}) {
+    for (const [name, cb] of Object.entries(callbacks)) {
+      this.#callbacks.set(name, cb);
+    }
+  }
+
+  register(name: string, callback: DeterministicCallback): void {
+    this.#callbacks.set(name, callback);
+  }
+
+  async validate(
+    rule: ValidationRule,
+    context: ValidationContext,
+  ): Promise<ValidationCheckResult> {
+    const config = rule.configuration as any;
+    const callbackName = typeof config === "string" ? config : config?.callbackName;
+
+    if (!callbackName) {
+      return {
+        validatorId: rule.id,
+        status: "inconclusive",
+        message: "No callback name specified in configuration",
+      };
+    }
+
+    const callback = this.#callbacks.get(callbackName);
+    if (!callback) {
+      return {
+        validatorId: rule.id,
+        status: "inconclusive",
+        message: `Deterministic callback '${callbackName}' is not registered`,
+      };
+    }
+
+    try {
+      return await callback(context);
+    } catch (error) {
+      return {
+        validatorId: rule.id,
+        status: "failed",
+        message: `Deterministic callback failed: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+  }
+}
+
+export class ModelValidatorHandler implements ValidatorHandler {
+  readonly kind = "model" as const;
+  readonly #executor: ModelExecutor | undefined;
+
+  constructor(executor?: ModelExecutor) {
+    this.#executor = executor;
+  }
+
+  async validate(
+    rule: ValidationRule,
+    context: ValidationContext,
+  ): Promise<ValidationCheckResult> {
+    if (!this.#executor) {
+      return {
+        validatorId: rule.id,
+        status: "inconclusive",
+        message: "No ModelExecutor configured for model-based validation",
+      };
+    }
+
+    const config = rule.configuration as any;
+    const prompt = config?.prompt ?? "Evaluate the output and determine if it meets requirements.";
+    const schema = config?.schema;
+
+    try {
+      const result = await this.#executor.execute({
+        runId: `eval-${Date.now()}`,
+        phaseId: "evaluation",
+        contract: {
+          rules: [],
+          step: {
+            id: "evaluate-step",
+            kind: "validation",
+            version: "1.0.0",
+            objective: prompt,
+            inputContract: { description: "Input for evaluation", requiredFields: [] },
+            outputContract: {
+              description: "Evaluation output",
+              requiredFields: ["passed", "explanation"],
+              schema: schema,
+            },
+            completionCriteria: [],
+            allowedTransitions: [],
+          },
+          categoryId: "review" as any,
+          modifierIds: [],
+          constraints: [],
+          ignoredConstraints: [],
+          constraintIdAliases: {},
+          reasoning: { universal: [], category: [], strategies: [] },
+        },
+        context: {
+          outputToEvaluate: context.execution.output,
+          criteria: rule.description,
+        },
+      });
+
+      const passed = result.output.passed;
+      const explanation = String(result.output.explanation ?? "");
+
+      if (passed === true) {
+        return {
+          validatorId: rule.id,
+          status: "passed",
+          message: explanation || "Model evaluation passed",
+        };
+      } else {
+        return {
+          validatorId: rule.id,
+          status: "failed",
+          message: explanation || "Model evaluation failed",
+        };
+      }
+    } catch (error) {
+      return {
+        validatorId: rule.id,
+        status: "failed",
+        message: `Model evaluation failed to run: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
   }
 }
