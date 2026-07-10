@@ -55,6 +55,11 @@ Phase 4 constraint registry tests passed
 - RED: `npm run test:phase4` exited `1`; regression failed with `removed modifier constraint must stop being active` after transition with `modifierIds: []`.
 - GREEN: after separating the run-wide registered catalog from the current active set and tracking persistent explicit/user IDs, `npm run test:phase4` exited `0`. Removed modifier history remains attributable to its original phase.
 
+### Preference compliance diagnostic
+
+- RED: `npm run test:phase4` exited `1`; the passed-check assertion expected `Relevant hard constraints have conclusive compliance records` but received `Relevant constraints have conclusive compliance records`.
+- GREEN: after correcting the diagnostic to describe the hard-constraint gate, `npm run test:phase4` exited `0`.
+
 ## Scope review
 
 The implementation adds no category-specific runtime branch, natural-language classification, provider binding, model routing, broad validation framework, or multi-agent core API. Category selection and phase transition remain explicit caller inputs.

@@ -159,7 +159,7 @@ export class ValidationPipeline {
         : {
             validatorId: "runtime.constraint_compliance",
             status: "passed",
-            message: "Relevant constraints have conclusive compliance records",
+            message: "Relevant hard constraints have conclusive compliance records",
           };
 
     return {

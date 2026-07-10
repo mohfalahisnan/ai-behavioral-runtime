@@ -299,6 +299,13 @@ assertEqual(
   "inconclusive",
   "missing preference compliance must remain visible as inconclusive",
 );
+assertEqual(
+  missingPreferenceResult.validation.checks.find(
+    (check) => check.validatorId === "runtime.constraint_compliance",
+  )?.message,
+  "Relevant hard constraints have conclusive compliance records",
+  "passed compliance diagnostics must describe only the hard-constraint gate",
+);
 
 const violatedRuntime = new BehavioralRuntime({
   specification: initialRuntimeSpecification,
