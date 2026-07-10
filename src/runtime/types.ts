@@ -1,6 +1,7 @@
 import type {
   CategoryId,
   Constraint,
+  ConstraintId,
   ConstraintRegistrySnapshot,
   ExecutionTrace,
   ExplicitConstraintInput,
@@ -25,6 +26,7 @@ export interface RuntimeRunState {
   readonly modifierIds: readonly ModifierId[];
   readonly userConstraints: readonly Constraint[];
   readonly constraintRegistry: ConstraintRegistrySnapshot;
+  readonly persistentConstraintIds: readonly ConstraintId[];
   readonly currentStepId: StepId;
   readonly status: RunStatus;
   readonly context: JsonObject;

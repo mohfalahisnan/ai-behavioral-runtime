@@ -125,8 +125,12 @@ export class ValidationPipeline {
         (item) => hardConstraintIds.has(item.constraintId) && item.status === "violated",
       )
       .map((item) => item.constraintId);
-    const inconclusive = relevantCompliance
-      .filter((item) => item.status === "inconclusive" || item.status === "not_applicable")
+    const inconclusiveHard = relevantCompliance
+      .filter(
+        (item) =>
+          hardConstraintIds.has(item.constraintId) &&
+          (item.status === "inconclusive" || item.status === "not_applicable"),
+      )
       .map((item) => item.constraintId);
 
     const integrityCheck: ValidationCheckResult = integrityMessages.length === 0
@@ -146,11 +150,11 @@ export class ValidationPipeline {
           status: "failed",
           message: `Violated hard constraints: ${violatedHard.join(", ")}`,
         }
-      : inconclusive.length > 0
+      : inconclusiveHard.length > 0
         ? {
             validatorId: "runtime.constraint_compliance",
             status: "inconclusive",
-            message: `Inconclusive relevant constraints: ${inconclusive.join(", ")}`,
+            message: `Inconclusive relevant hard constraints: ${inconclusiveHard.join(", ")}`,
           }
         : {
             validatorId: "runtime.constraint_compliance",

@@ -88,15 +88,23 @@ export class BehavioralRuntime {
     constraintRegistry = this.#constraints.register(
       constraintRegistry,
       protocol.modifiers.flatMap((modifier) => modifier.constraints ?? []),
+      input.phaseId,
     );
     constraintRegistry = this.#constraints.register(
       constraintRegistry,
       input.userConstraints ?? [],
+      input.phaseId,
     );
     constraintRegistry = this.#constraints.register(
       constraintRegistry,
       explicitConstraints,
+      input.phaseId,
     );
+    const persistentConstraintIds = [
+      ...new Set(
+        [...userConstraints, ...explicitConstraints].map((constraint) => constraint.id),
+      ),
+    ];
 
     const state: RuntimeRunState = {
       runId: input.runId,
@@ -106,6 +114,7 @@ export class BehavioralRuntime {
       modifierIds,
       userConstraints,
       constraintRegistry,
+      persistentConstraintIds,
       currentStepId: protocol.category.workflow.entryStep,
       status: "active",
       context: input.context,
@@ -146,21 +155,41 @@ export class BehavioralRuntime {
     const explicitConstraints = (input.explicitConstraints ?? []).map((constraint) =>
       this.#extractor.extract(constraint),
     );
+    const addedPersistentConstraints = [
+      ...(input.userConstraints ?? []),
+      ...explicitConstraints,
+    ];
+    const persistentConstraintIds = [
+      ...new Set([
+        ...state.persistentConstraintIds,
+        ...addedPersistentConstraints.map((constraint) => constraint.id),
+      ]),
+    ];
+    const modifierConstraints = protocol.modifiers.flatMap(
+      (modifier) => modifier.constraints ?? [],
+    );
     let constraintRegistry = state.constraintRegistry;
     if (input.modifierIds !== undefined) {
       constraintRegistry = this.#constraints.register(
         constraintRegistry,
-        protocol.modifiers.flatMap((modifier) => modifier.constraints ?? []),
+        modifierConstraints,
+        input.phaseId,
       );
     }
     constraintRegistry = this.#constraints.register(
       constraintRegistry,
       input.userConstraints ?? [],
+      input.phaseId,
     );
     constraintRegistry = this.#constraints.register(
       constraintRegistry,
       explicitConstraints,
+      input.phaseId,
     );
+    constraintRegistry = this.#constraints.activate(constraintRegistry, [
+      ...persistentConstraintIds,
+      ...modifierConstraints.map((constraint) => constraint.id),
+    ]);
 
     const { blockedReason: _blockedReason, ...preserved } = state;
     const transitioned: RuntimeRunState = {
@@ -171,6 +200,7 @@ export class BehavioralRuntime {
       modifierIds,
       userConstraints: [...state.userConstraints, ...(input.userConstraints ?? [])],
       constraintRegistry,
+      persistentConstraintIds,
       currentStepId: protocol.category.workflow.entryStep,
       status: "active",
       attemptsByStep: {},

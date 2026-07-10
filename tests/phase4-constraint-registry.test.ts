@@ -12,6 +12,7 @@ import type {
   ModelExecutionInput,
   ModelExecutionResult,
   ModelExecutor,
+  ProtocolRuntimeSpecification,
 } from "../src/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -76,20 +77,30 @@ const registry = new ConstraintRegistry();
 let snapshot = registry.empty();
 snapshot = registry.register(snapshot, [
   collisionExtractor.extract({ instruction: "First rule", kind: "must", source: "user" }),
-]);
+], "phase-collision-one");
 await assertRejects(
   () => registry.register(snapshot, [
     collisionExtractor.extract({ instruction: "Different rule", kind: "must", source: "user" }),
-  ]),
+  ], "phase-collision-two"),
   "collision",
 );
 
 snapshot = registry.empty();
-snapshot = registry.register(snapshot, [whitespaceA]);
-const reaffirmed = registry.register(snapshot, [whitespaceB]);
+snapshot = registry.register(snapshot, [whitespaceA], "phase-registry-one");
+const reaffirmed = registry.register(snapshot, [whitespaceB], "phase-registry-two");
 assertEqual(reaffirmed.constraints.length, 1, "semantic duplicates must deduplicate");
 assertEqual(reaffirmed.history.length, 2, "duplicate registration must append history");
 assertEqual(reaffirmed.history[1]?.action, "reaffirmed", "duplicate must be reaffirmed");
+assertEqual(
+  snapshot.history[0]?.phaseId,
+  "phase-registry-one",
+  "registration history must record its phase",
+);
+assertEqual(
+  reaffirmed.history[1]?.phaseId,
+  "phase-registry-two",
+  "reaffirmation history must record its phase",
+);
 assertEqual(snapshot.history.length, 1, "registration must not mutate the prior snapshot");
 
 function makeConstraint(
@@ -112,7 +123,7 @@ const selectionSnapshot = registry.register(registry.empty(), [
   makeConstraint("included-outside-applicability", ["other-step"]),
   makeConstraint("applicable", ["target-step"]),
   makeConstraint("not-applicable", ["other-step"]),
-]);
+], "phase-selection");
 let selection: ConstraintSelection = registry.select(
   selectionSnapshot,
   {
@@ -255,6 +266,40 @@ assertEqual(
   "missing relevant compliance must become inconclusive",
 );
 
+const preferenceInput: ExplicitConstraintInput = {
+  instruction: "Prefer concise prose",
+  kind: "preference",
+  source: "user",
+};
+const preferenceId = extractor.extract(preferenceInput).id;
+const missingPreferenceRuntime = new BehavioralRuntime({
+  specification: initialRuntimeSpecification,
+  executor: new ComplianceExecutor(() => undefined),
+});
+await missingPreferenceRuntime.startRun({
+  runId: "phase4-missing-preference-compliance",
+  phaseId: "phase-discussion",
+  categoryId: "discussion",
+  objective: "Report but do not gate on missing preference compliance",
+  context: initialContext,
+  explicitConstraints: [preferenceInput],
+});
+const missingPreferenceResult = await missingPreferenceRuntime.executeCurrentStep(
+  "phase4-missing-preference-compliance",
+);
+assertEqual(
+  missingPreferenceResult.validation.status,
+  "passed",
+  "missing preference compliance must not gate validation",
+);
+assertEqual(
+  missingPreferenceResult.validation.constraintCompliance?.find(
+    (item) => item.constraintId === preferenceId,
+  )?.status,
+  "inconclusive",
+  "missing preference compliance must remain visible as inconclusive",
+);
+
 const violatedRuntime = new BehavioralRuntime({
   specification: initialRuntimeSpecification,
   executor: new ComplianceExecutor(() => [
@@ -357,9 +402,112 @@ assertEqual(
   "reaffirmed",
   "repeated explicit constraint must be reaffirmed across phases",
 );
+assertEqual(
+  transitioned.constraintRegistry.history.at(-2)?.phaseId,
+  "phase-two",
+  "transition reaffirmation history must record the new phase",
+);
+assertEqual(
+  transitioned.constraintRegistry.history.at(-1)?.phaseId,
+  "phase-two",
+  "transition registration history must record the new phase",
+);
 assert(
   transitioned.constraintRegistry.constraints.some((constraint) => constraint.id === relevantId),
   "stable constraint ID must survive transition",
+);
+
+const temporaryModifierConstraint: Constraint = {
+  ...makeConstraint("temporary-modifier-constraint"),
+  source: "modifier",
+};
+const legacyPersistentConstraint = makeConstraint("legacy-persistent-constraint");
+const modifierSpecification: ProtocolRuntimeSpecification = {
+  ...initialRuntimeSpecification,
+  modifiers: [
+    ...initialRuntimeSpecification.modifiers,
+    {
+      id: "temporary-modifier",
+      version: "0.1.0",
+      rules: [],
+      constraints: [temporaryModifierConstraint],
+    },
+  ],
+};
+const modifierRuntime = new BehavioralRuntime({
+  specification: modifierSpecification,
+  executor: new ComplianceExecutor((input) =>
+    input.contract.constraints.map((constraint) => ({
+      constraintId: constraint.id,
+      status: "satisfied",
+    })),
+  ),
+});
+let modifierState = await modifierRuntime.startRun({
+  runId: "phase4-remove-modifier",
+  phaseId: "modifier-phase-one",
+  categoryId: "discussion",
+  objective: "Complete a phase with a temporary modifier",
+  modifierIds: ["temporary-modifier"],
+  userConstraints: [legacyPersistentConstraint],
+  explicitConstraints: [relevantInput],
+  context: initialContext,
+});
+while (modifierState.status === "active") {
+  modifierState = (await modifierRuntime.executeCurrentStep(modifierState.runId)).state;
+}
+assertEqual(modifierState.status, "completed", "modifier phase must complete");
+assert(
+  modifierState.constraintRegistry.constraints.some(
+    (constraint) => constraint.id === temporaryModifierConstraint.id,
+  ),
+  "activated modifier constraint must be active in its phase",
+);
+const modifierHistoryCount = modifierState.constraintRegistry.history.length;
+const withoutModifier = await modifierRuntime.transitionPhase(modifierState.runId, {
+  phaseId: "modifier-phase-two",
+  categoryId: "task_execution",
+  objective: "Continue without the temporary modifier",
+  modifierIds: [],
+});
+assert(
+  !withoutModifier.constraintRegistry.constraints.some(
+    (constraint) => constraint.id === temporaryModifierConstraint.id,
+  ),
+  "removed modifier constraint must stop being active",
+);
+assert(
+  withoutModifier.constraintRegistry.constraints.some(
+    (constraint) => constraint.id === legacyPersistentConstraint.id,
+  ),
+  "legacy user constraints must remain active",
+);
+assert(
+  withoutModifier.constraintRegistry.constraints.some(
+    (constraint) => constraint.id === relevantId,
+  ),
+  "explicit constraints must remain active",
+);
+assertEqual(
+  withoutModifier.constraintRegistry.history.length,
+  modifierHistoryCount,
+  "modifier removal must preserve registry history",
+);
+assertEqual(
+  withoutModifier.constraintRegistry.history.find(
+    (entry) => entry.constraintId === temporaryModifierConstraint.id,
+  )?.phaseId,
+  "modifier-phase-one",
+  "removed modifier history must retain its registration phase",
+);
+const withoutModifierContract = await modifierRuntime.compileCurrentStep(
+  withoutModifier.runId,
+);
+assert(
+  !withoutModifierContract.constraints.some(
+    (constraint) => constraint.id === temporaryModifierConstraint.id,
+  ),
+  "removed modifier constraint must not be selected",
 );
 
 const blockedRuntime = new BehavioralRuntime({

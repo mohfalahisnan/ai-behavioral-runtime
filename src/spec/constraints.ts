@@ -1,4 +1,4 @@
-import type { ConstraintId, StepId } from "./primitives.js";
+import type { ConstraintId, PhaseId, StepId } from "./primitives.js";
 
 export type ConstraintKind =
   | "must"
@@ -49,12 +49,16 @@ export type ConstraintHistoryAction = "registered" | "reaffirmed";
 export interface ConstraintHistoryEntry {
   readonly sequence: number;
   readonly constraintId: ConstraintId;
+  readonly phaseId: PhaseId;
   readonly action: ConstraintHistoryAction;
   readonly origin?: ConstraintOrigin;
 }
 
 export interface ConstraintRegistrySnapshot {
+  /** Constraints active for the current phase. */
   readonly constraints: readonly Constraint[];
+  /** All constraints known to the run, including inactive prior-phase modifiers. */
+  readonly registeredConstraints: readonly Constraint[];
   readonly history: readonly ConstraintHistoryEntry[];
 }
 

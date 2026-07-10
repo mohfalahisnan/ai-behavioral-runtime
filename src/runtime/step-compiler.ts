@@ -19,10 +19,14 @@ export class StepCompiler {
     step: WorkflowStep,
     snapshot?: ConstraintRegistrySnapshot,
   ): EffectiveStepContract {
-    const activeSnapshot = snapshot ?? this.constraints.register(
-      this.constraints.empty(),
-      this.registry.resolveConstraints(protocol),
-    );
+    const protocolConstraints = snapshot
+      ? undefined
+      : this.registry.resolveConstraints(protocol);
+    const activeSnapshot = snapshot ?? {
+      constraints: protocolConstraints ?? [],
+      registeredConstraints: protocolConstraints ?? [],
+      history: [],
+    };
     const selection = this.constraints.select(
       activeSnapshot,
       step.relevantConstraints,
