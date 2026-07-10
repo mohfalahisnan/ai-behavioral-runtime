@@ -5,6 +5,7 @@ import type {
 } from "./constraints.js";
 import type {
   CategoryId,
+  ConstraintId,
   JsonObject,
   ModifierId,
   PhaseId,
@@ -26,6 +27,7 @@ export interface EffectiveStepContract {
   readonly reasoning: ReasoningProtocol;
   readonly constraints: readonly Constraint[];
   readonly ignoredConstraints: readonly IgnoredConstraintSelection[];
+  readonly constraintIdAliases: Readonly<Record<ConstraintId, ConstraintId>>;
 }
 
 export interface ModelExecutionInput {

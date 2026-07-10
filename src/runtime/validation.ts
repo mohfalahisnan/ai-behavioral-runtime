@@ -15,6 +15,7 @@ export interface ValidationContext {
   readonly step: WorkflowStep;
   readonly constraints: readonly Constraint[];
   readonly ignoredConstraints: readonly IgnoredConstraintSelection[];
+  readonly constraintIdAliases: Readonly<Record<string, string>>;
   readonly execution: ModelExecutionResult;
 }
 
@@ -82,26 +83,35 @@ export class ValidationPipeline {
       "not_applicable",
       "inconclusive",
     ]);
+    const resolveId = (constraintId: string): string =>
+      Object.prototype.hasOwnProperty.call(
+        context.constraintIdAliases,
+        constraintId,
+      )
+        ? context.constraintIdAliases[constraintId] ?? constraintId
+        : constraintId;
 
     for (const item of reported) {
+      const constraintId = resolveId(item.constraintId);
       const reportedStatus: unknown = item.status;
       const normalizedItem: ConstraintCompliance = validStatuses.has(reportedStatus)
-        ? item
+        ? { ...item, constraintId }
         : {
             ...item,
+            constraintId,
             status: "inconclusive",
             explanation: `Invalid executor compliance status '${String(reportedStatus)}'`,
           };
       if (!validStatuses.has(reportedStatus)) {
-        invalidStatusEntries.add(`${item.constraintId}=${String(reportedStatus)}`);
+        invalidStatusEntries.add(`${constraintId}=${String(reportedStatus)}`);
       }
-      if (firstById.has(item.constraintId)) {
-        duplicateIds.add(item.constraintId);
+      if (firstById.has(constraintId)) {
+        duplicateIds.add(constraintId);
       } else {
-        firstById.set(item.constraintId, normalizedItem);
+        firstById.set(constraintId, normalizedItem);
       }
-      if (!knownIds.has(item.constraintId)) {
-        unknownIds.add(item.constraintId);
+      if (!knownIds.has(constraintId)) {
+        unknownIds.add(constraintId);
       }
     }
 
@@ -281,7 +291,16 @@ export class ConstraintValidatorHandler implements ValidatorHandler {
     }
 
     const compliance = new Map(
-      (context.execution.constraintCompliance ?? []).map((result) => [result.constraintId, result]),
+      (context.execution.constraintCompliance ?? []).map((result) => {
+        const constraintId =
+          Object.prototype.hasOwnProperty.call(
+            context.constraintIdAliases,
+            result.constraintId,
+          )
+            ? context.constraintIdAliases[result.constraintId] ?? result.constraintId
+            : result.constraintId;
+        return [constraintId, { ...result, constraintId }] as const;
+      }),
     );
     const hardConstraints = context.constraints.filter(
       (constraint) => constraint.kind !== "preference",

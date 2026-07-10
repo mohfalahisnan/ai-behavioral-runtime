@@ -166,6 +166,94 @@ await assertRejects(
   ),
   "collision",
 );
+let aliasSelection = registry.select(
+  canonicalSnapshot,
+  {
+    include: [canonicalLegacyA.id],
+    exclude: [canonicalLegacyB.id],
+  },
+  "target-step",
+);
+assertEqual(
+  aliasSelection.relevant.length,
+  0,
+  "exclude alias must beat canonical include",
+);
+assertEqual(
+  aliasSelection.ignored[0]?.reason,
+  "explicitly_excluded",
+  "exclude alias must produce the explicit exclusion reason",
+);
+aliasSelection = registry.select(
+  canonicalSnapshot,
+  {
+    include: [canonicalLegacyB.id],
+    includeAllApplicable: false,
+  },
+  "target-step",
+);
+assertEqual(
+  aliasSelection.relevant[0]?.id,
+  canonicalLegacyA.id,
+  "include alias must select the canonical constraint when defaults are disabled",
+);
+
+const protoConstraint: Constraint = {
+  ...makeConstraint("__proto__"),
+  rule: "Preserve prototype-named legacy constraint",
+};
+const constructorConstraint: Constraint = {
+  ...makeConstraint("constructor"),
+  rule: "Preserve constructor-named legacy constraint",
+};
+const specialIdSnapshot = registry.register(
+  registry.empty(),
+  [protoConstraint, constructorConstraint],
+  "phase-special-ids",
+);
+assertEqual(
+  Object.getPrototypeOf(specialIdSnapshot.constraintIdAliases),
+  null,
+  "alias storage must have a null prototype",
+);
+assert(
+  Object.prototype.hasOwnProperty.call(
+    specialIdSnapshot.constraintIdAliases,
+    "__proto__",
+  ),
+  "prototype-named constraint ID must be an own alias key",
+);
+assertEqual(
+  specialIdSnapshot.constraintIdAliases["__proto__"],
+  "__proto__",
+  "prototype-named alias must never become an object prototype",
+);
+assertEqual(
+  specialIdSnapshot.constraintIdAliases["constructor"],
+  "constructor",
+  "constructor-named alias must remain a string ID",
+);
+assertEqual(
+  registry.resolveConstraintIds(specialIdSnapshot, ["__proto__", "constructor"])
+    .join(","),
+  "__proto__,constructor",
+  "special IDs must resolve without inherited-key interference",
+);
+const specialIdSelection = registry.select(
+  specialIdSnapshot,
+  { include: ["__proto__"], includeAllApplicable: false },
+  "target-step",
+);
+assertEqual(
+  specialIdSelection.relevant[0]?.id,
+  "__proto__",
+  "prototype-named alias must select its canonical constraint",
+);
+assertEqual(
+  registry.activate(specialIdSnapshot, ["constructor"]).constraints[0]?.id,
+  "constructor",
+  "constructor-named alias must activate its canonical constraint",
+);
 
 const selectionSnapshot = registry.register(registry.empty(), [
   makeConstraint("excluded-and-included"),
@@ -309,6 +397,73 @@ assertEqual(
   unsafeCompletionResult.state.status,
   "blocked",
   "failed validation must not create completed state",
+);
+
+const aliasComplianceRuntime = new BehavioralRuntime({
+  specification: initialRuntimeSpecification,
+  executor: new ComplianceExecutor(() => [
+    { constraintId: canonicalLegacyB.id, status: "satisfied" },
+  ]),
+});
+await aliasComplianceRuntime.startRun({
+  runId: "phase4-alias-compliance",
+  phaseId: "phase-alias-compliance",
+  categoryId: "discussion",
+  objective: "Accept compliance through a known alias",
+  context: initialContext,
+  userConstraints: [canonicalLegacyA, canonicalLegacyB],
+});
+const aliasComplianceContract = await aliasComplianceRuntime.compileCurrentStep(
+  "phase4-alias-compliance",
+);
+assertEqual(
+  aliasComplianceContract.constraintIdAliases[canonicalLegacyB.id],
+  canonicalLegacyA.id,
+  "compiled contract must expose canonical alias resolution to the executor",
+);
+const aliasComplianceResult = await aliasComplianceRuntime.executeCurrentStep(
+  "phase4-alias-compliance",
+);
+assertEqual(
+  aliasComplianceResult.validation.status,
+  "passed",
+  "known alias compliance must satisfy the canonical constraint",
+);
+assertEqual(
+  aliasComplianceResult.validation.constraintCompliance?.[0]?.constraintId,
+  canonicalLegacyA.id,
+  "returned compliance must report the canonical constraint ID",
+);
+
+const duplicateAliasComplianceRuntime = new BehavioralRuntime({
+  specification: initialRuntimeSpecification,
+  executor: new ComplianceExecutor(() => [
+    { constraintId: canonicalLegacyA.id, status: "satisfied" },
+    { constraintId: canonicalLegacyB.id, status: "satisfied" },
+  ]),
+});
+await duplicateAliasComplianceRuntime.startRun({
+  runId: "phase4-duplicate-alias-compliance",
+  phaseId: "phase-duplicate-alias-compliance",
+  categoryId: "discussion",
+  objective: "Reject canonical and alias duplicate compliance",
+  context: initialContext,
+  userConstraints: [canonicalLegacyA, canonicalLegacyB],
+});
+const duplicateAliasComplianceResult =
+  await duplicateAliasComplianceRuntime.executeCurrentStep(
+    "phase4-duplicate-alias-compliance",
+  );
+assertEqual(
+  duplicateAliasComplianceResult.validation.status,
+  "failed",
+  "canonical and alias compliance must be a duplicate failure",
+);
+assert(
+  duplicateAliasComplianceResult.validation.checks
+    .find((check) => check.validatorId === "runtime.constraint_compliance_ids")
+    ?.message?.includes(`Duplicate constraint compliance IDs: ${canonicalLegacyA.id}`),
+  "canonical and alias duplicate must report the canonical ID",
 );
 
 const relevantInput: ExplicitConstraintInput = {
@@ -845,6 +1000,137 @@ assert(
     (constraint) => constraint.id === temporaryModifierConstraint.id,
   ),
   "hydrated completed state must deactivate removed modifiers",
+);
+
+const preservedPhase4Trace = transitioned.traces[0];
+assert(preservedPhase4Trace, "phase 4 snapshot migration needs a trace fixture");
+const phase4SnapshotWithoutAliases = {
+  ...legacyActiveState,
+  runId: "phase4-snapshot-without-aliases",
+  phaseId: "phase4-snapshot-migration",
+  modifierIds: [],
+  userConstraints: [canonicalLegacyA, canonicalLegacyB],
+  constraintRegistry: {
+    constraints: [canonicalLegacyA, canonicalLegacyB],
+    registeredConstraints: [canonicalLegacyA, canonicalLegacyB],
+    history: [
+      {
+        sequence: 1,
+        constraintId: canonicalLegacyA.id,
+        phaseId: "phase4-snapshot-migration",
+        action: "registered",
+      },
+      {
+        sequence: 2,
+        constraintId: canonicalLegacyB.id,
+        phaseId: "phase4-snapshot-migration",
+        action: "reaffirmed",
+      },
+    ],
+  },
+  persistentConstraintIds: [canonicalLegacyB.id],
+  traces: [preservedPhase4Trace],
+} as unknown as RuntimeRunState;
+const phase4SnapshotStore = new SeededStateStore([phase4SnapshotWithoutAliases]);
+const phase4SnapshotRuntime = new BehavioralRuntime({
+  specification: initialRuntimeSpecification,
+  stateStore: phase4SnapshotStore,
+  executor: new ComplianceExecutor(() => [
+    { constraintId: canonicalLegacyB.id, status: "satisfied" },
+  ]),
+});
+const normalizedPhase4Snapshot = await phase4SnapshotRuntime.getState(
+  phase4SnapshotWithoutAliases.runId,
+);
+assertEqual(
+  normalizedPhase4Snapshot.constraintRegistry.registeredConstraints.length,
+  1,
+  "persisted Phase 4 catalog must canonically deduplicate",
+);
+assertEqual(
+  normalizedPhase4Snapshot.constraintRegistry.constraints.length,
+  1,
+  "persisted Phase 4 active constraints must canonically deduplicate",
+);
+assertEqual(
+  normalizedPhase4Snapshot.constraintRegistry.constraintIdAliases[
+    canonicalLegacyB.id
+  ],
+  canonicalLegacyA.id,
+  "persisted Phase 4 alias map must be restored",
+);
+assertEqual(
+  normalizedPhase4Snapshot.persistentConstraintIds[0],
+  canonicalLegacyA.id,
+  "persisted Phase 4 persistent IDs must normalize to canonical IDs",
+);
+assertEqual(
+  normalizedPhase4Snapshot.constraintRegistry.history.length,
+  2,
+  "persisted Phase 4 history must be preserved",
+);
+assertEqual(
+  normalizedPhase4Snapshot.traces[0],
+  preservedPhase4Trace,
+  "persisted Phase 4 traces must be preserved",
+);
+assertEqual(
+  await phase4SnapshotStore.get(phase4SnapshotWithoutAliases.runId),
+  normalizedPhase4Snapshot,
+  "normalized Phase 4 snapshot must be saved through the state store",
+);
+const normalizedPhase4Execution = await phase4SnapshotRuntime.executeCurrentStep(
+  phase4SnapshotWithoutAliases.runId,
+);
+assertEqual(
+  normalizedPhase4Execution.validation.status,
+  "passed",
+  "normalized Phase 4 snapshot must validate alias compliance",
+);
+
+const oldAliasMap = Object.fromEntries([
+  ["__proto__", "__proto__"],
+  ["constructor", "constructor"],
+]);
+const oldAliasSnapshotState = {
+  ...legacyActiveState,
+  runId: "phase4-old-alias-map",
+  phaseId: "phase4-old-alias-map-phase",
+  modifierIds: [],
+  userConstraints: [protoConstraint, constructorConstraint],
+  constraintRegistry: {
+    constraints: [protoConstraint, constructorConstraint],
+    registeredConstraints: [protoConstraint, constructorConstraint],
+    constraintIdAliases: oldAliasMap,
+    history: [],
+  },
+  persistentConstraintIds: ["__proto__", "constructor"],
+} as unknown as RuntimeRunState;
+const oldAliasStore = new SeededStateStore([oldAliasSnapshotState]);
+const oldAliasRuntime = new BehavioralRuntime({
+  specification: initialRuntimeSpecification,
+  stateStore: oldAliasStore,
+  executor: new ComplianceExecutor(() => []),
+});
+const normalizedOldAliasState = await oldAliasRuntime.getState(
+  oldAliasSnapshotState.runId,
+);
+assertEqual(
+  Object.getPrototypeOf(
+    normalizedOldAliasState.constraintRegistry.constraintIdAliases,
+  ),
+  null,
+  "persisted ordinary-object alias maps must migrate to null-prototype maps",
+);
+assertEqual(
+  normalizedOldAliasState.constraintRegistry.constraintIdAliases["__proto__"],
+  "__proto__",
+  "persisted prototype-named aliases must survive migration",
+);
+assertEqual(
+  await oldAliasStore.get(oldAliasSnapshotState.runId),
+  normalizedOldAliasState,
+  "prototype-safe alias migration must persist through the state store",
 );
 
 const blockedRuntime = new BehavioralRuntime({

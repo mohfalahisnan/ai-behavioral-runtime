@@ -25,8 +25,13 @@ export class StepCompiler {
     const activeSnapshot = snapshot ?? {
       constraints: protocolConstraints ?? [],
       registeredConstraints: protocolConstraints ?? [],
-      constraintIdAliases: Object.fromEntries(
-        (protocolConstraints ?? []).map((constraint) => [constraint.id, constraint.id]),
+      constraintIdAliases: Object.freeze(
+        Object.assign(
+          Object.create(null) as Record<string, string>,
+          Object.fromEntries(
+            (protocolConstraints ?? []).map((constraint) => [constraint.id, constraint.id]),
+          ),
+        ),
       ),
       history: [],
     };
@@ -58,6 +63,7 @@ export class StepCompiler {
       reasoning,
       constraints: selection.relevant,
       ignoredConstraints: selection.ignored,
+      constraintIdAliases: activeSnapshot.constraintIdAliases,
     };
   }
 }

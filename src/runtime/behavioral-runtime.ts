@@ -132,7 +132,26 @@ export class BehavioralRuntime {
       throw new RunNotFoundError(runId);
     }
     if (state.constraintRegistry && Array.isArray(state.persistentConstraintIds)) {
-      return state;
+      const constraintRegistry = this.#constraints.normalize(state.constraintRegistry);
+      const persistentConstraintIds = this.#constraints.resolveConstraintIds(
+        constraintRegistry,
+        state.persistentConstraintIds,
+      );
+      const persistentIdsMatch =
+        persistentConstraintIds.length === state.persistentConstraintIds.length &&
+        persistentConstraintIds.every(
+          (constraintId, index) => constraintId === state.persistentConstraintIds[index],
+        );
+      if (constraintRegistry === state.constraintRegistry && persistentIdsMatch) {
+        return state;
+      }
+      const normalized = {
+        ...state,
+        constraintRegistry,
+        persistentConstraintIds,
+      };
+      await this.#store.save(normalized);
+      return normalized;
     }
 
     const protocol = this.#registry.resolveEffectiveProtocol(
@@ -316,6 +335,7 @@ export class BehavioralRuntime {
       step,
       constraints: contract.constraints,
       ignoredConstraints: contract.ignoredConstraints,
+      constraintIdAliases: contract.constraintIdAliases,
       execution,
     });
 
