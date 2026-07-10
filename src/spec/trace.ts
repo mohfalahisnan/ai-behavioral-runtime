@@ -24,6 +24,15 @@ export interface TransitionTrace {
   readonly reason: string;
 }
 
+import type { HostCapabilities, EnforcementLevel } from "./host.js";
+import type { PermissionPolicy } from "./permissions.js";
+
+export interface HostGovernanceTrace {
+  readonly hostCapabilities: HostCapabilities;
+  readonly enforcementLevel: EnforcementLevel;
+  readonly permissionPolicy: PermissionPolicy;
+}
+
 export interface ExecutionTrace {
   readonly runId: RunId;
   readonly phaseId: PhaseId;
@@ -33,4 +42,5 @@ export interface ExecutionTrace {
   readonly validation?: ValidationResult;
   readonly transition?: TransitionTrace;
   readonly timestamp: string;
+  readonly governance: HostGovernanceTrace;
 }

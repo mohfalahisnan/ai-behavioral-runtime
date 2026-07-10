@@ -9,6 +9,10 @@ import type {
   TransitionTrace,
   ValidationResult,
   WorkflowStep,
+  HostAdapter,
+  HostCapabilities,
+  EnforcementLevel,
+  PermissionPolicy,
 } from "../spec/index.js";
 import { ConstraintExtractor, ConstraintRegistry } from "../constraints/index.js";
 import { InvalidRunStateError, RunNotFoundError } from "./errors.js";
@@ -25,6 +29,7 @@ import type {
   RuntimeStepResult,
   PhaseTransitionInput,
   StartRunInput,
+  PreparedStep,
 } from "./types.js";
 import {
   ConstraintValidatorHandler,
@@ -32,10 +37,15 @@ import {
   ValidationPipeline,
   type ValidatorHandler,
 } from "./validation.js";
+import {
+  NO_HOST_CAPABILITIES,
+  resolveEnforcementLevel,
+} from "./host-governance.js";
 
 export interface BehavioralRuntimeOptions {
   readonly specification: ProtocolRuntimeSpecification;
-  readonly executor: ModelExecutor;
+  readonly executor?: ModelExecutor;
+  readonly hostAdapter?: HostAdapter;
   readonly stateStore?: RuntimeStateStore;
   readonly validators?: readonly ValidatorHandler[];
   readonly clock?: RuntimeClock;
@@ -45,8 +55,14 @@ const systemClock: RuntimeClock = {
   now: () => new Date().toISOString(),
 };
 
+const NO_EXECUTION_PERMISSION: PermissionPolicy = Object.freeze({
+  execution: "none",
+});
+
 export class BehavioralRuntime {
-  readonly #executor: ModelExecutor;
+  readonly #executor: ModelExecutor | undefined;
+  readonly #hostCapabilities: HostCapabilities;
+  readonly #enforcementLevel: EnforcementLevel;
   readonly #store: RuntimeStateStore;
   readonly #registry: ProtocolRegistry;
   readonly #constraints = new ConstraintRegistry();
@@ -58,6 +74,8 @@ export class BehavioralRuntime {
 
   constructor(options: BehavioralRuntimeOptions) {
     this.#executor = options.executor;
+    this.#hostCapabilities = options.hostAdapter?.capabilities ?? NO_HOST_CAPABILITIES;
+    this.#enforcementLevel = resolveEnforcementLevel(this.#hostCapabilities);
     this.#store = options.stateStore ?? new InMemoryRuntimeStateStore();
     this.#registry = new ProtocolRegistry(options.specification);
     this.#compiler = new StepCompiler(this.#registry, this.#constraints);
@@ -120,6 +138,7 @@ export class BehavioralRuntime {
       attemptsByStep: {},
       retriesByStep: {},
       traces: [],
+      permissionPolicy: input.permissionPolicy ?? NO_EXECUTION_PERMISSION,
     };
 
     await this.#store.save(state);
@@ -131,6 +150,7 @@ export class BehavioralRuntime {
     if (!state) {
       throw new RunNotFoundError(runId);
     }
+    const permissionPolicy = state.permissionPolicy ?? NO_EXECUTION_PERMISSION;
     if (state.constraintRegistry && Array.isArray(state.persistentConstraintIds)) {
       const constraintRegistry = this.#constraints.normalize(state.constraintRegistry);
       const persistentConstraintIds = this.#constraints.resolveConstraintIds(
@@ -142,13 +162,19 @@ export class BehavioralRuntime {
         persistentConstraintIds.every(
           (constraintId, index) => constraintId === state.persistentConstraintIds[index],
         );
-      if (constraintRegistry === state.constraintRegistry && persistentIdsMatch) {
+      const permissionMatches = state.permissionPolicy === permissionPolicy;
+      if (
+        constraintRegistry === state.constraintRegistry &&
+        persistentIdsMatch &&
+        permissionMatches
+      ) {
         return state;
       }
       const normalized = {
         ...state,
         constraintRegistry,
         persistentConstraintIds,
+        permissionPolicy,
       };
       await this.#store.save(normalized);
       return normalized;
@@ -190,6 +216,7 @@ export class BehavioralRuntime {
       userConstraints,
       constraintRegistry,
       persistentConstraintIds,
+      permissionPolicy,
     };
     await this.#store.save(hydrated);
     return hydrated;
@@ -272,9 +299,45 @@ export class BehavioralRuntime {
       status: "active",
       attemptsByStep: {},
       retriesByStep: {},
+      permissionPolicy: input.permissionPolicy ?? state.permissionPolicy,
     };
     await this.#store.save(transitioned);
     return transitioned;
+  }
+
+  async prepareCurrentStep(runId: RunId): Promise<PreparedStep> {
+    const state = await this.getState(runId);
+    if (state.status !== "active") {
+      throw new InvalidRunStateError(
+        `Cannot prepare run '${runId}' while status is '${state.status}'`,
+      );
+    }
+
+    const { protocol, step } = this.#resolveCurrent(state);
+    const contract = this.#compiler.compile(protocol, step, state.constraintRegistry);
+    const inputValidation = this.#validateInput(step, state, contract);
+    const prepared: PreparedStep = {
+      runId: state.runId,
+      phaseId: state.phaseId,
+      contract,
+      context: state.context,
+      permissionPolicy: state.permissionPolicy,
+      hostCapabilities: this.#hostCapabilities,
+      enforcementLevel: this.#enforcementLevel,
+      readyForExecution: inputValidation.status === "passed",
+      inputValidation,
+    };
+
+    if (prepared.readyForExecution) return prepared;
+
+    const transition: TransitionTrace = {
+      action: "block",
+      reason: "Current context does not satisfy the step input contract",
+    };
+    const blocked = this.#applyBlockedTransition(state, transition.reason);
+    const trace = this.#createTrace(blocked, contract, inputValidation, transition);
+    await this.#store.save({ ...blocked, traces: [...blocked.traces, trace] });
+    return prepared;
   }
 
   async compileCurrentStep(runId: RunId): Promise<EffectiveStepContract> {
@@ -324,7 +387,7 @@ export class BehavioralRuntime {
     };
     const executingState: RuntimeRunState = { ...state, attemptsByStep };
 
-    const execution = await this.#executor.execute({
+    const execution = await this.#executor!.execute({
       runId: state.runId,
       phaseId: state.phaseId,
       contract,
@@ -515,6 +578,11 @@ export class BehavioralRuntime {
       validation,
       transition,
       timestamp: this.#clock.now(),
+      governance: {
+        hostCapabilities: this.#hostCapabilities,
+        enforcementLevel: this.#enforcementLevel,
+        permissionPolicy: state.permissionPolicy,
+      },
     };
 
     return execution ? { ...base, execution } : base;
