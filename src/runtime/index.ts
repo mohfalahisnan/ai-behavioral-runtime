@@ -8,3 +8,4 @@ export * from "./transition-resolver.js";
 export * from "./types.js";
 export * from "./validation.js";
 export * from "./turn-resolver.js";
+export * from "./trace-inspector.js";
