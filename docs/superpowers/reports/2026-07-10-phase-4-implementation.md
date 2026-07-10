@@ -6,6 +6,7 @@
 - Implementation and focused tests: `af46a32` (`feat(runtime): add phase 4 constraint registry`)
 - Task-review fixes and regressions: `95642e4` (`fix(runtime): address phase 4 review findings`)
 - Whole-branch invariant fixes: `3ef7f2f` (`fix(runtime): harden phase 4 invariants`)
+- Alias re-review fixes: `0bbb67f` (`fix(runtime): harden constraint alias handling`)
 
 ## TDD evidence
 
@@ -86,6 +87,28 @@ Phase 4 constraint registry tests passed
 
 - RED: `npm run test:phase4` exited `1`; compilation of a seeded legacy active state failed `hydrated legacy active state must retain user constraints`.
 - GREEN: after rebuilding and saving registry-backed state from legacy user and modifier constraints, active compilation/validation and completed-phase transition passed with `npm run test:phase4` exit `0`.
+
+## Alias re-review TDD fixes
+
+### Selector aliases
+
+- RED: `npm run test:phase4` exited `1`; excluding a deduplicated alias while including the canonical ID expected zero relevant constraints but received one.
+- GREEN: after resolving selector IDs before precedence, alias exclusion wins and alias inclusion works with `includeAllApplicable: false`; `npm run test:phase4` exited `0`.
+
+### Executor compliance aliases
+
+- RED: `npm run test:phase4` exited `1` at typecheck because `EffectiveStepContract` did not expose `constraintIdAliases`, confirming alias metadata stopped before the executor/validation boundary.
+- GREEN: after threading aliases through the contract and validation, alias-only compliance satisfies the canonical constraint and canonical-plus-alias reporting fails as a canonical duplicate; `npm run test:phase4` exited `0`.
+
+### Persisted Phase-4 snapshot normalization
+
+- RED: `npm run test:phase4` exited `1`; a seeded snapshot without aliases expected one canonical registered constraint but received two.
+- GREEN: normalization now deduplicates active/catalog state, restores aliases and persistent IDs, preserves history/traces, saves through the configured state store, and validates alias compliance; `npm run test:phase4` exited `0`.
+
+### Prototype-safe alias storage
+
+- RED: after correcting a test-only `.constructor` typing issue without production edits, `npm run test:phase4` exited `1`; alias storage expected a null prototype but received an ordinary object.
+- GREEN: null-prototype maps plus own-key reads preserve `__proto__` and `constructor` through registration, resolution, selection, activation, persisted-state migration, contract compilation, and validation; `npm run test:phase4` exited `0`.
 
 ## Scope review
 
