@@ -20,7 +20,7 @@ Core rule:
 
 ## Current status
 
-**Phase 4 — Constraint Registry** is implemented.
+**Phase 6 — Reasoning Strategy Library** is implemented.
 
 The repository currently contains:
 

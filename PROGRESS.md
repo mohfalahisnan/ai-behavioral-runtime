@@ -11,7 +11,8 @@ Last updated: 2026-07-10
 | Phase 3 — Initial Categories | ✅ Completed | Added and validated `discussion`, `task_execution`, and `coding_task` on the same declarative runtime. |
 | Phase 4 — Constraint Registry | ✅ Completed | Added deterministic explicit extraction, immutable registry history, step relevance metadata, complete compliance reporting, and caller-authorized phase transitions. |
 | Phase 5 — Host-Native Product Boundary | ✅ Completed | Added executor-free prepare/submit, optional direct execution, host governance contracts, persisted permissions, local lifecycle docs, and Claude Code as first host. |
-| Phase 6 — Reasoning Strategy Library | ⏳ Next | Implement the first reusable strategies with observable checks, outputs, and evidence expectations. |
+| Phase 6 — Reasoning Strategy Library | ✅ Completed | Added eight reusable strategies, complete observable contracts, definition validation, workflow mappings, and regression coverage. |
+| Phase 7 — Validation Framework | ⏳ Next | Add validator interfaces and expanded deterministic evidence enforcement. |
 
 ## Phase 1 — Specification
 
@@ -150,10 +151,33 @@ Validation evidence:
 
 ## Phase 6 — Reasoning Strategy Library
 
+**Status:** ✅ Completed
+
+Delivered:
+
+- eight reusable strategy definitions
+- required objectives, behaviors, checks, prohibited shortcuts, and evidence expectations
+- deterministic definition-integrity validation
+- approved strategy mappings without workflow-shape changes
+- host-native and direct-executor contract compatibility
+- observable behavior and evidence expectations without hidden chain-of-thought
+
+Validation evidence:
+
+- `npm run typecheck` — passed
+- `npm test` — passed
+- `npm run smoke` — passed
+- `npm run smoke:host-native` — passed
+- `npm run build` — passed
+- `git diff --check` — passed
+
+## Phase 7 — Validation Framework
+
 **Status:** ⏳ Next
 
 Planned scope:
 
-- reusable constraint analysis, evidence gathering, hypothesis testing, root-cause analysis, tradeoff analysis, risk analysis, adversarial review, and verification strategies
-- strategy objectives, recommended behavior, required checks, prohibited shortcuts, and evidence expectations
-- observable reasoning behavior and outputs without requiring hidden chain-of-thought
+- validator interfaces
+- schema, constraint, completion-criteria, deterministic callback, and model-based validators
+- bounded retry integration
+- traceable validation evidence
