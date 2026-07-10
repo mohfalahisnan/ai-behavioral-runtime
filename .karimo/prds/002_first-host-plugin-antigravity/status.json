@@ -1,28 +1,28 @@
 {
-  "status": "ready",
+  "status": "completed",
   "slug": "first-host-plugin-antigravity",
   "name": "first-host-plugin-antigravity",
-  "current_wave": 1,
+  "current_wave": 5,
   "execution_mode": "direct-to-main",
   "tasks": {
     "1a": {
-      "status": "pending",
+      "status": "done",
       "wave": 1
     },
     "2a": {
-      "status": "pending",
+      "status": "done",
       "wave": 2
     },
     "3a": {
-      "status": "pending",
+      "status": "done",
       "wave": 3
     },
     "4a": {
-      "status": "pending",
+      "status": "done",
       "wave": 4
     },
     "5a": {
-      "status": "pending",
+      "status": "done",
       "wave": 5
     }
   }
