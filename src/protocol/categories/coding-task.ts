@@ -59,6 +59,7 @@ export const codingTaskCategory: CategoryProtocol = {
         kind: "action",
         version: "0.1.0",
         objective: "Inspect the relevant code, tests, and repository conventions.",
+        reasoning: [{ strategyId: "evidence_gathering" }],
         inputContract: {
           description: "Structured requirements and the supplied codebase context.",
           requiredFields: ["requirements", "codingConstraints", "codebaseContext"],
@@ -75,7 +76,11 @@ export const codingTaskCategory: CategoryProtocol = {
         kind: "reasoning",
         version: "0.1.0",
         objective: "Diagnose the gap between current and required behavior.",
-        reasoning: [{ strategyId: "constraint_analysis" }],
+        reasoning: [
+          { strategyId: "evidence_gathering" },
+          { strategyId: "hypothesis_testing" },
+          { strategyId: "root_cause_analysis" },
+        ],
         inputContract: {
           description: "Requirements, current behavior, and inspected codebase findings.",
           requiredFields: ["requirements", "codebaseFindings", "currentBehavior"],
@@ -96,7 +101,10 @@ export const codingTaskCategory: CategoryProtocol = {
         kind: "reasoning",
         version: "0.1.0",
         objective: "Design the smallest solution that satisfies the coding requirement.",
-        reasoning: [{ strategyId: "tradeoff_analysis" }],
+        reasoning: [
+          { strategyId: "tradeoff_analysis" },
+          { strategyId: "risk_analysis" },
+        ],
         inputContract: {
           description: "The diagnosis, affected areas, constraints, and acceptance criteria.",
           requiredFields: ["diagnosis", "affectedAreas", "codingConstraints", "acceptanceCriteria"],
@@ -117,7 +125,10 @@ export const codingTaskCategory: CategoryProtocol = {
         kind: "validation",
         version: "0.1.0",
         objective: "Check the proposed solution for material security risks before implementation.",
-        reasoning: [{ strategyId: "constraint_analysis" }],
+        reasoning: [
+          { strategyId: "risk_analysis" },
+          { strategyId: "adversarial_review" },
+        ],
         inputContract: {
           description: "The solution design, implementation plan, and coding constraints.",
           requiredFields: ["solutionDesign", "implementationPlan", "codingConstraints"],
@@ -160,6 +171,7 @@ export const codingTaskCategory: CategoryProtocol = {
         kind: "validation",
         version: "0.1.0",
         objective: "Run static checks against the implementation.",
+        reasoning: [{ strategyId: "verification" }],
         inputContract: {
           description: "The completed implementation and affected code areas.",
           requiredFields: ["implementation", "affectedAreas"],
@@ -180,6 +192,7 @@ export const codingTaskCategory: CategoryProtocol = {
         kind: "validation",
         version: "0.1.0",
         objective: "Run behavioral checks against the implementation.",
+        reasoning: [{ strategyId: "verification" }],
         inputContract: {
           description: "The implementation and successful static validation results.",
           requiredFields: ["implementation", "staticValidation"],
@@ -200,6 +213,7 @@ export const codingTaskCategory: CategoryProtocol = {
         kind: "validation",
         version: "0.1.0",
         objective: "Check that the implementation does not regress existing behavior.",
+        reasoning: [{ strategyId: "verification" }],
         inputContract: {
           description: "The implementation, runtime results, and acceptance criteria.",
           requiredFields: ["implementation", "runtimeValidation", "acceptanceCriteria"],
@@ -220,7 +234,11 @@ export const codingTaskCategory: CategoryProtocol = {
         kind: "reasoning",
         version: "0.1.0",
         objective: "Review the final change for correctness, scope, and remaining risk.",
-        reasoning: [{ strategyId: "constraint_analysis" }, { strategyId: "tradeoff_analysis" }],
+        reasoning: [
+          { strategyId: "constraint_analysis" },
+          { strategyId: "adversarial_review" },
+          { strategyId: "verification" },
+        ],
         inputContract: {
           description: "The diff summary and all validation results.",
           requiredFields: ["diffSummary", "staticValidation", "runtimeValidation", "regressionValidation"],

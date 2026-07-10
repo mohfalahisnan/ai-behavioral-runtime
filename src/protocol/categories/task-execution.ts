@@ -53,7 +53,10 @@ export const taskExecutionCategory: CategoryProtocol = {
         kind: "reasoning",
         version: "0.1.0",
         objective: "Create a bounded execution and validation plan.",
-        reasoning: [{ strategyId: "tradeoff_analysis" }],
+        reasoning: [
+          { strategyId: "tradeoff_analysis" },
+          { strategyId: "risk_analysis" },
+        ],
         inputContract: {
           description: "The understood task, constraints, and success criteria.",
           requiredFields: ["taskObjective", "taskConstraints", "successCriteria"],
@@ -90,7 +93,7 @@ export const taskExecutionCategory: CategoryProtocol = {
         kind: "validation",
         version: "0.1.0",
         objective: "Validate the task result against the declared success criteria.",
-        reasoning: [{ strategyId: "constraint_analysis" }],
+        reasoning: [{ strategyId: "verification" }],
         inputContract: {
           description: "The task result, evidence, and declared success criteria.",
           requiredFields: ["taskResult", "executionEvidence", "successCriteria"],

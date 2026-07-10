@@ -80,7 +80,10 @@ export const discussionCategory: CategoryProtocol = {
         kind: "reasoning",
         version: "0.1.0",
         objective: "Analyze the idea, expose tradeoffs, and challenge weak assumptions.",
-        reasoning: [{ strategyId: "tradeoff_analysis" }],
+        reasoning: [
+          { strategyId: "tradeoff_analysis" },
+          { strategyId: "adversarial_review" },
+        ],
         inputContract: {
           description: "Structured position from the previous step.",
           requiredFields: ["position", "constraints", "assumptions"],
