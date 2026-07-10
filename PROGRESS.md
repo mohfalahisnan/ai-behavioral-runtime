@@ -10,7 +10,8 @@ Last updated: 2026-07-10
 | Phase 2 — Minimal Runtime | ✅ Completed | Minimal behavioral runtime implemented with protocol loading, workflow execution, step contract compilation, model execution, validation, tracing, and runtime-controlled transitions. |
 | Phase 3 — Initial Categories | ✅ Completed | Added and validated `discussion`, `task_execution`, and `coding_task` on the same declarative runtime. |
 | Phase 4 — Constraint Registry | ✅ Completed | Added deterministic explicit extraction, immutable registry history, step relevance metadata, complete compliance reporting, and caller-authorized phase transitions. |
-| Phase 5 — Reasoning Strategy Library | ⏳ Next | Implement the first reusable strategies with observable checks, outputs, and evidence expectations. |
+| Phase 5 — Host-Native Product Boundary | ✅ Completed | Added executor-free prepare/submit, optional direct execution, host governance contracts, persisted permissions, local lifecycle docs, and Claude Code as first host. |
+| Phase 6 — Reasoning Strategy Library | ⏳ Next | Implement the first reusable strategies with observable checks, outputs, and evidence expectations. |
 
 ## Phase 1 — Specification
 
@@ -122,7 +123,32 @@ Validation evidence:
 - `npm run smoke` — passed
 - `git diff --check` — passed
 
-## Phase 5 — Reasoning Strategy Library
+## Phase 5 — Host-Native Product Boundary
+
+**Status:** ✅ Completed
+
+Delivered:
+
+- separate `prepareCurrentStep()` from `submitStepResult()`
+- make `ModelExecutor` optional and keep `executeCurrentStep()` as a convenience helper
+- define `HostAdapter`, `HostCapabilities`, and explicit `EnforcementLevel`
+- add first-class `PermissionPolicy` to runtime state
+- record enforcement and permissions in traces
+- document the plugin lifecycle and local persistence boundary
+- record Claude Code as the first host and Codex as the second compatibility target
+- classify Claude Code as `interceptable` and preserve per-tool capability caveats
+- update product documentation to plugin-first, local-first ownership
+
+Validation evidence:
+
+- `npm run typecheck` — passed
+- `npm test` — passed
+- `npm run smoke` — passed
+- `npm run smoke:host-native` — passed
+- `npm run build` — passed
+- `git diff --check` — passed
+
+## Phase 6 — Reasoning Strategy Library
 
 **Status:** ⏳ Next
 

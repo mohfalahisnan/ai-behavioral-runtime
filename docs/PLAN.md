@@ -2,7 +2,7 @@
 
 ## 1. Objective
 
-Build a model-agnostic behavioral runtime that makes AI behavior more predictable, inspectable, correctable, and portable across different model providers.
+Build a self-contained local behavioral runtime delivered through host-native AI plugins. The plugin governs behavior while the host owns model execution, authentication, billing, model availability, context, and host-native tools.
 
 The runtime should standardize:
 
@@ -17,12 +17,12 @@ The runtime should standardize:
 The core must work with:
 
 ```text
-One Runtime
-+ One Protocol System
-+ One Model
+One Local Plugin
++ One Behavioral Runtime
++ One Host Adapter
 ```
 
-Multi-agent execution and model routing are optional future extensions and are excluded from the core architecture.
+No hosted backend, provider credential, public SDK, model router, or multi-agent framework is required. Direct model execution remains an optional adapter and testing helper.
 
 ---
 
@@ -69,7 +69,11 @@ Current Workflow Step
     ├── Validation Contract
     └── Completion Criteria
     ↓
-Model Execution
+Prepared Step Contract
+    ↓
+Host Model Execution
+    ↓
+Submitted Result
     ↓
 Validation
     ↓
@@ -86,9 +90,9 @@ Compact form:
 ```text
 Protocol
 → Workflow
-→ Step
-→ Reasoning
-→ Execution
+→ Prepare
+→ Host Execution
+→ Submit
 → Validation
 → Transition
 ```
@@ -542,34 +546,39 @@ Initial coding rules:
 
 ---
 
-## 13. Model Execution Boundary
+## 13. Host-Native Execution Boundary
 
-The core runtime exposes a generic executor:
+The host-neutral core exposes separate preparation and submission primitives:
 
 ```ts
-interface ModelExecutor {
-  execute(
-    input: ModelExecutionInput,
-  ): Promise<ModelExecutionResult>;
+interface BehavioralRuntime {
+  prepareCurrentStep(runId: RunId): Promise<PreparedStep>;
+  submitStepResult(
+    runId: RunId,
+    result: ExecutionResult,
+  ): Promise<RuntimeStepResult>;
 }
 ```
 
-Initial execution path:
+Primary execution path:
 
 ```text
 Current Workflow Step
     ↓
-Single Model Executor
+Prepared Step Contract
     ↓
-Model
+Host Adapter
+    ↓
+Host Model Execution
+    ↓
+Submitted Result
 ```
 
-The protocol must not depend on:
+The runtime defines `HostAdapter`, `HostCapabilities`, `EnforcementLevel`, and `PermissionPolicy`. Enforcement claims must match the hooks that the selected host actually exposes.
 
-- multiple agents,
-- multiple models,
-- provider-specific APIs,
-- model routing.
+A generic `ModelExecutor` may remain behind `executeCurrentStep()` as an optional convenience adapter and testing helper. Runtime construction and host-native operation must not require it.
+
+The core must not depend on hosted infrastructure, provider credentials, multiple models, provider-specific APIs, model routing, or multi-agent execution.
 
 ---
 
@@ -589,7 +598,7 @@ Selected Model
 Execution
 ```
 
-This should implement the same `ModelExecutor` interface.
+This may implement the optional `ModelExecutor` interface.
 
 ### Optional Multi-Agent Execution
 
@@ -703,7 +712,32 @@ Exit criteria:
 - ignored constraints appear in validation output,
 - constraint history survives phase transitions.
 
-### Phase 5 — Reasoning Strategy Library
+### Phase 5 — Host-Native Product Boundary
+
+Implement:
+
+- `prepareCurrentStep()` and `PreparedStep`,
+- `submitStepResult()` and host-neutral `ExecutionResult`,
+- optional `ModelExecutor` construction and `executeCurrentStep()` convenience execution,
+- `HostAdapter` and `HostCapabilities`,
+- explicit `EnforcementLevel`,
+- first-class `PermissionPolicy` in runtime state,
+- enforcement and permission details in traces,
+- a documented local persistence boundary,
+- Claude Code selected as the first host target; Codex is the second compatibility target,
+- plugin lifecycle documentation.
+
+Exit criteria:
+
+- a run can prepare and submit a step without direct model invocation,
+- existing direct-executor behavior remains available only when configured,
+- runtime construction succeeds without an executor,
+- permissions default to no execution authority,
+- trace guarantees match declared host capabilities,
+- no hosted backend or provider credential is required,
+- Claude Code is classified as `interceptable`, not automatically `fully_governed`, and per-tool capability gaps remain visible.
+
+### Phase 6 — Reasoning Strategy Library
 
 Implement the first reusable strategies:
 
@@ -726,7 +760,7 @@ Each strategy should define:
 
 Do not require hidden chain-of-thought. Standardize observable reasoning behavior, checks, outputs, and evidence expectations.
 
-### Phase 6 — Validation Framework
+### Phase 7 — Validation Framework
 
 Implement validator interfaces.
 
@@ -751,7 +785,7 @@ Exit criteria:
 - completion requires validation,
 - validation results are traceable.
 
-### Phase 7 — Automatic Phase and Category Resolution
+### Phase 8 — Automatic Phase and Category Resolution
 
 Introduce automatic resolution only after the runtime works with manual selection.
 
@@ -790,7 +824,7 @@ Exit criteria:
 - explicit permissions cannot be overridden by classification,
 - ambiguity never silently authorizes execution.
 
-### Phase 8 — Traceability and Debugging
+### Phase 9 — Traceability and Debugging
 
 Every runtime decision should be inspectable.
 
@@ -838,7 +872,7 @@ The trace should answer:
 - Which validation failed?
 - Why did the runtime transition?
 
-### Phase 9 — Evaluation
+### Phase 10 — Evaluation
 
 Compare:
 
@@ -883,6 +917,10 @@ Primary question:
 
 > Did the system make behavior more predictable, failures more visible, and correction easier?
 
+### Phase 11 — First Real Host Plugin
+
+Implement one self-contained local Claude Code plugin. Use the real integration to measure adapter gaps before generalizing the host contract or adding the second target, Codex.
+
 ---
 
 ## 16. Recommended MVP Scope
@@ -923,13 +961,25 @@ Include only:
 - constraints
 - completion criteria
 
-1 Single-Model Executor
+1 Host Adapter
+
+1 Host Capability Model
+
+1 Permission Policy
+
+1 Optional Direct Executor Helper
+
+1 Local State Store
 
 1 Trace System
 ```
 
 Explicitly exclude from MVP:
 
+- hosted backend,
+- public SDK requirement,
+- direct provider API requirement,
+- external telemetry infrastructure,
 - multi-agent execution,
 - model routing,
 - deep protocol inheritance,
@@ -972,9 +1022,16 @@ src/
 │   ├── pipeline.ts
 │   └── types.ts
 │
+├── host/
+│   ├── adapter.ts
+│   ├── capabilities.ts
+│   └── enforcement.ts
+│
+├── permissions/
+│   └── policy.ts
+│
 ├── execution/
-│   ├── model-executor.ts
-│   └── single-model-executor.ts
+│   └── optional-model-executor.ts
 │
 ├── compiler/
 │   ├── effective-protocol.ts
@@ -995,7 +1052,9 @@ Protocol definitions
     ≠
 Workflow runtime
     ≠
-Model execution backend
+Host adapter
+    ≠
+Model provider API
 ```
 
 ---
@@ -1059,20 +1118,22 @@ Mitigation:
 2. Define TypeScript core interfaces.
 3. Build workflow state machine.
 4. Build manual protocol loader.
-5. Implement single-model executor.
+5. Split step preparation from result submission.
 6. Implement discussion category.
 7. Implement generic task category.
 8. Implement minimal coding category.
 9. Add constraint registry.
-10. Add step-specific reasoning strategies.
-11. Add validation pipeline.
-12. Add trace and replay.
-13. Create benchmark suite.
-14. Compare against baseline prompting.
-15. Refine architecture based on measured failures.
-16. Only then consider automatic category resolution.
-17. Only later consider optional model routing.
-18. Consider multi-agent execution only when evidence justifies it.
+10. Add host adapter, capabilities, enforcement levels, and permissions.
+11. Document the local plugin lifecycle and persistence boundary.
+12. Select one first host from real lifecycle capabilities.
+13. Add step-specific reasoning strategies.
+14. Expand validation pipeline.
+15. Add trace and replay.
+16. Add automatic phase and category resolution.
+17. Create benchmark suite and compare against baseline prompting.
+18. Build the first real host plugin and refine the adapter from measured gaps.
+19. Only later consider optional model routing.
+20. Consider multi-agent execution only when evidence justifies it.
 
 ---
 
@@ -1085,10 +1146,11 @@ Version one succeeds when:
 - false completion claims become detectable,
 - failures can be localized to a specific phase or step,
 - the runtime can explain why a transition occurred,
-- the same protocol can operate across different models with minimal adaptation,
+- the same protocol can operate through different host adapters without host-specific semantics leaking into it,
 - coding workflows can evolve deeply without contaminating generic task behavior,
 - simple discussions remain lightweight,
-- the system works correctly with one model and no multi-agent architecture.
+- the system works locally with no hosted backend, direct provider credentials, model routing, or multi-agent architecture,
+- every enforcement claim is supported by the selected host's actual capabilities.
 
 ---
 
@@ -1115,7 +1177,9 @@ Version one succeeds when:
          ↓          ↓           ↓
      Reasoning   Constraints   Contracts
                     ↓
-              Model Execution
+              Host Execution
+                    ↓
+              Result Submission
                     ↓
                  Validation
                     ↓
