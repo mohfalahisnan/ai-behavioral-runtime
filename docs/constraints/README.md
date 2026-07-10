@@ -15,7 +15,7 @@ The runtime does not infer natural-language intent. Empty instructions fail. Dif
 
 ## Registry and selection
 
-`ConstraintRegistry` returns immutable snapshots. `constraints` contains the active set for the current phase, while `registeredConstraints` retains the run-wide catalog used for collision detection and later reactivation. New semantic constraints append `registered` history entries. Repeated semantic constraints stay deduplicated and append `reaffirmed` entries. Every history entry records the `phaseId` that caused the registration or reaffirmation.
+`ConstraintRegistry` returns immutable snapshots. `constraints` contains the active set for the current phase, while `registeredConstraints` retains the run-wide catalog used for collision detection and later reactivation. Deduplication uses canonical semantic content, not only caller IDs. Different IDs for the same canonical constraint map through `constraintIdAliases` to one registered ID and append `reaffirmed` history. Reusing any observed ID for different canonical content remains a collision. Every history entry records the `phaseId` that caused the registration or reaffirmation.
 
 Selection precedence is deterministic:
 
@@ -30,7 +30,13 @@ Compiled step contracts expose relevant constraints in `constraints` and ignored
 
 Validation returns one compliance record for each constraint visible to the step. Relevant executor records are preserved. Missing relevant records become `inconclusive`. Missing hard-constraint records make overall validation inconclusive; missing preference records remain visible but do not gate validation. Ignored constraints become `not_applicable` with the selection reason.
 
-Unknown or duplicate executor compliance IDs create deterministic failed checks. Violated hard constraints fail validation.
+Unknown or duplicate executor compliance IDs create deterministic failed checks. Executor status values are runtime-checked; invalid values fail integrity validation and normalize to `inconclusive` in the returned public compliance report. Violated hard constraints fail validation.
+
+## Runtime safety and persisted state
+
+A declarative `complete` transition is eligible only when aggregate validation is `passed`. A misconfigured protocol cannot complete after failed, inconclusive, or human-review validation.
+
+When a state store returns a pre-Phase-4 run without `constraintRegistry` and `persistentConstraintIds`, the runtime rebuilds them from existing user constraints and active modifier constraints, saves the normalized state through the configured store, and continues normal compilation, validation, or completed-phase transition.
 
 ## Phase transition boundary
 

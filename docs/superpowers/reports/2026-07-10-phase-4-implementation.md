@@ -5,6 +5,7 @@
 - Plan: `b273c55` (`docs: plan phase 4 constraint registry`)
 - Implementation and focused tests: `af46a32` (`feat(runtime): add phase 4 constraint registry`)
 - Task-review fixes and regressions: `95642e4` (`fix(runtime): address phase 4 review findings`)
+- Whole-branch invariant fixes: `3ef7f2f` (`fix(runtime): harden phase 4 invariants`)
 
 ## TDD evidence
 
@@ -59,6 +60,32 @@ Phase 4 constraint registry tests passed
 
 - RED: `npm run test:phase4` exited `1`; the passed-check assertion expected `Relevant hard constraints have conclusive compliance records` but received `Relevant constraints have conclusive compliance records`.
 - GREEN: after correcting the diagnostic to describe the hard-constraint gate, `npm run test:phase4` exited `0`.
+
+## Whole-branch review TDD fixes
+
+### Completion safety gate
+
+- RED: `npm run test:phase4` exited `1`; a deliberately misconfigured declarative transition produced `complete` after failed output and completion-criteria validation, while the regression expected `block`.
+- GREEN: after making `complete` eligible only for aggregate `passed` validation, `npm run test:phase4` exited `0`; state remained blocked and never completed.
+
+### Untrusted compliance status
+
+- RED: `npm run test:phase4` exited `1`; an executor-supplied `bogus` status produced overall `passed`, while the regression expected `failed`.
+- GREEN: after runtime status validation, deterministic integrity reporting, and normalization to `inconclusive`, `npm run test:phase4` exited `0`.
+
+### Canonical deduplication and ID aliases
+
+- RED 1: `npm run test:phase4` exited `1`; same canonical legacy constraints with different IDs produced two active constraints instead of one.
+- GREEN 1: canonical indexing deduplicated active and registered state and appended reaffirmation history.
+- RED 2: `npm run test:phase4` exited `1` during phase transition with `Cannot activate unknown constraints: legacy-canonical-b`.
+- GREEN 2: persistent and modifier activation IDs resolved through canonical registered constraints.
+- RED 3: `npm run test:phase4` exited `1` because reusing a deduplicated alias ID for different semantics did not throw the expected collision.
+- GREEN 3: immutable alias tracking preserved collision behavior for every observed ID; final `npm run test:phase4` exited `0`.
+
+### Pre-Phase-4 persisted-state hydration
+
+- RED: `npm run test:phase4` exited `1`; compilation of a seeded legacy active state failed `hydrated legacy active state must retain user constraints`.
+- GREEN: after rebuilding and saving registry-backed state from legacy user and modifier constraints, active compilation/validation and completed-phase transition passed with `npm run test:phase4` exit `0`.
 
 ## Scope review
 
